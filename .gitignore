@@ -4,3 +4,5 @@ bin/
 /tmp
 assets/*.zt[spm]
 *.tiled-session
+
+*.zmt
