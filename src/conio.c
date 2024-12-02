@@ -20,9 +20,11 @@
 #define KB_BUFFER_SIZE  32
 static unsigned char __array[KB_BUFFER_SIZE + (KB_BUFFER_SIZE - 1)] = { 0x00 };
 static unsigned char* __key_buffer;
+static unsigned char __kbhit_buffer[2];
 
 zos_err_t __kb_flush(void) {
   /* Flush the keyboard fifo */
+  __kbhit_buffer[0] = 0x00;
   uint16_t size = KB_BUFFER_SIZE;
   while (size) {
     zos_err_t err = read(DEV_STDIN, __key_buffer, &size);
@@ -91,11 +93,6 @@ void clr_color(unsigned char c) {
   }
 }
 
-/* Return true if there's a key waiting, return false if not */
-unsigned char kbhit (void) {
-  return 0;
-}
-
 /* Set the cursor to the specified X position, leave the Y position untouched */
 void gotox (unsigned char x) {
   zvb_peri_text_curs_x = x;
@@ -158,12 +155,29 @@ void cputsxy (unsigned char x, unsigned char y, const char* s) {
   cputs(s);
 }
 
+/* Return true if there's a key waiting, return false if not */
+unsigned char kbhit (void) {
+  __kb_mode(KB_READ_NON_BLOCK | KB_MODE_RAW);
+  uint16_t size = 1;
+  zos_err_t err = read(DEV_STDIN, __key_buffer, &size);
+  if(__kbhit_buffer[0] == KB_RELEASED) {
+    __kb_flush();
+  }
+  if(size == 0) __kb_flush();
+  return size;
+}
 
 /* Return a character from the keyboard. If there is no character available,
 ** the function waits until the user does press a key. If cursor is set to
 ** 1 (see below), a blinking cursor is displayed while waiting.
 */
 char cgetc (void) {
+  if(__kbhit_buffer[0] != 0x00) {
+    const char c = __kbhit_buffer[0];
+    __kb_flush();
+    return c;
+  }
+
   __kb_mode(KB_READ_NON_BLOCK | KB_MODE_RAW);
   __kb_flush();
 
