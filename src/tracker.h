@@ -1,6 +1,9 @@
+#include <stddef.h>
 #include <zos_vfs.h>
 #include <zgdk.h>
 
+#ifndef TRACKER_H
+#define TRACKER_H
 /**
  * Cells represent the fields of a Step, each step has 4 cells (Frequency, Waveform, Effect 1, Effect 2)
  *
@@ -38,6 +41,7 @@ typedef struct {
   uint8_t waveform;
   uint8_t fx1;
   uint8_t fx2;
+
 } step_t;
 
 typedef struct {
@@ -54,3 +58,5 @@ typedef struct {
 
 zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev);
 zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev);
+void pattern_init(pattern_t *pattern);
+#endif

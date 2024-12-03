@@ -6,7 +6,7 @@
 #include <zos_keyboard.h>
 #include <zos_video.h>
 #include <zvb_sound.h>
-// #include <zgdk.h>
+#include <zgdk.h>
 #include "conio.h"
 #include "windows.h"
 #include "tracker.h"
@@ -17,6 +17,9 @@
 #define FRAMES_PER_STEP       (FRAMES_PER_SIXTEENTH)
 
 #define ACTION_QUIT           1
+
+const char dummy[5];
+char textbuff[SCREEN_COL80_WIDTH];
 
 typedef struct {
   char title[TRACKER_TITLE_LEN + 1];
@@ -134,7 +137,6 @@ uint8_t active_cell = 0;
 uint8_t active_step = 0;
 uint8_t playing_step = 0;
 uint16_t frames = 0;
-char text[78];
 
 music_state_t state = T_NONE;
 
@@ -144,16 +146,6 @@ music_state_t state = T_NONE;
   window_gotoxy(track.windows[index], 0, 0); \
   gotoxy(track.windows[index]->x + 2, track.windows[index]->y + 2);
 
-static void init_pattern(pattern_t *pattern) {
-  for(uint8_t i = 0; i < NUM_VOICES; i++) {
-    for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
-      pattern->voices[i]->steps[j].freq = 0xFFFF;
-      pattern->voices[i]->steps[j].waveform = 0xFF;
-      pattern->voices[i]->steps[j].fx1 = 0xFF;
-      pattern->voices[i]->steps[j].fx2 = 0xFF;
-    }
-  }
-}
 
 static void update_cell(voice_t *voice, int8_t amount) {
   step_t *step = &voice->steps[active_step];
@@ -162,12 +154,12 @@ static void update_cell(voice_t *voice, int8_t amount) {
       step->freq += amount;
       break;
     case Cell_Waveform:
-      if(step->waveform == 0xFF) {
-        step->waveform = 0x00;
+      if(amount < 0 && step->waveform == 0xFF) {
+        step->waveform = 0x04;
       }
       step->waveform += amount;
-      if((step->waveform < 0xFF) && (step->waveform > 0x0F)) {
-        step->waveform = 0x00;
+      if(step->waveform > 0x03) {
+        step->waveform = 0xFF;
       }
       break;
     case Cell_Effect1:
@@ -186,6 +178,7 @@ static void refresh_step(uint8_t voice_index, uint8_t step_index) {
   const char text[17];
   window_gotoxy(w, 1, step_index + 1);
 
+  // TODO: can this be done once outside of the function?
   uint8_t clr = w->fg;
   if(step_index == active_step) {
     clr = TEXT_COLOR_YELLOW;
@@ -223,23 +216,44 @@ static void refresh_step(uint8_t voice_index, uint8_t step_index) {
   }
 }
 
-static void play_step(uint8_t step_index) {
+static void refresh_steps(uint8_t step_index) {
+  refresh_step(0, step_index);
+  refresh_step(1, step_index);
+  refresh_step(2, step_index);
+  refresh_step(3, step_index);
+}
+
+static void play_step(step_t *step, sound_voice_t voice) {
+  // uint16_t freq = step->freq;
+  uint8_t waveform = step->waveform;
+  // uint8_t fx1 = step->fx1;
+  // uint8_t fx2 = step->fx2;
+
+  if(step->freq != 0xFFFF) {
+    if(waveform > 0x03) waveform = WAV_SQUARE;
+    waveform &= 03;
+    sprintf(textbuff, "%02x %05u %02x %02x %02x", voice, step->freq, waveform & 0x03, step->fx1, step->fx2);
+    cputs(textbuff);
+    zvb_sound_set_voices(voice, SOUND_FREQ_TO_DIV(step->freq), waveform);
+  }
+}
+
+static void play_steps(uint8_t step_index) {
   step_t *step1 = &track.pattern->voices[0]->steps[step_index];
   step_t *step2 = &track.pattern->voices[1]->steps[step_index];
   step_t *step3 = &track.pattern->voices[2]->steps[step_index];
   step_t *step4 = &track.pattern->voices[3]->steps[step_index];
-  if(step1->freq != 0xFF) {
-    zvb_sound_set_voices(VOICE0, step1->freq, step1->waveform);
-  }
-  if(step2->freq != 0xFF) {
-    zvb_sound_set_voices(VOICE0, step2->freq, step2->waveform);
-  }
-  if(step3->freq != 0xFF) {
-    zvb_sound_set_voices(VOICE0, step3->freq, step3->waveform);
-  }
-  if(step3->freq != 0xFF) {
-    zvb_sound_set_voices(VOICE0, step3->freq, step4->waveform);
-  }
+  gotoxy(2, 9);
+  // sprintf(textbuff, "Step %02u", step_index);
+  // cputs(textbuff);
+  gotoxy(2, 10);
+  play_step(step1, VOICE0);
+  gotoxy(2, 11);
+  play_step(step2, VOICE1);
+  gotoxy(2, 12);
+  play_step(step3, VOICE2);
+  gotoxy(2, 13);
+  play_step(step4, VOICE3);
 }
 
 static void refresh_track(uint8_t voice_index) {
@@ -268,35 +282,56 @@ static void refresh_help(void) {
   window_puts(&winHelp, "     Space: Play/Stop\n");
 }
 
-zos_err_t file_load(void) {
-  zos_dev_t file_dev = open("track.zmt", O_RDONLY);
+zos_err_t file_load(const char *filename) {
+  zos_dev_t file_dev = open(filename, O_RDONLY);
   if(file_dev < 0) {
-    printf("failed to open file, %d (%02x)", -file_dev, -file_dev);
-    init_pattern(track.pattern);
+    printf("failed to open file, %d (%02x)\n", -file_dev, -file_dev);
+    pattern_init(track.pattern);
     return -file_dev;
   } else {
+    zos_err_t err;
     uint16_t size = 0;
     char text[TRACKER_TITLE_LEN] = { 0x20 };
 
     size = 3;
-    read(file_dev, text, &size); // format header
-    // printf("Format: %03s\n", text);
+    err = read(file_dev, text, &size); // format header
+    if(err != ERR_SUCCESS) {
+      printf("error reading format header, %d (%02x)\n", err, err);
+      return err;
+    }
+    printf("Format: %03s\n", text);
 
     size = sizeof(uint8_t);
-    read(file_dev, text, &size); // version header
-    // printf("Version: %d\n", text[0]);
+    err = read(file_dev, text, &size); // version header
+    if(err != ERR_SUCCESS) {
+      printf("error reading version header, %d (%02x)\n", err, err);
+      return err;
+    }
+    printf("Version: %d\n", text[0]);
 
     size = TRACKER_TITLE_LEN;
-    read(file_dev, text, &size); // track title
+    err = read(file_dev, text, &size); // track title
+    if(err != ERR_SUCCESS) {
+      printf("error reading track title, %d (%02x)\n", err, err);
+      return err;
+    }
     memcpy(track.title, text, size);
     track.title[TRACKER_TITLE_LEN] = 0x00; // NUL
-    // printf("Track: %12s (read: %d)\n", track.title, size);
+    printf("Track: %12s (read: %d)\n", track.title, size);
 
     size = sizeof(uint8_t);
-    read(file_dev, text, &size); // pattern count
-    // printf("Patterns: %d\n", text[0]);
+    err = read(file_dev, text, &size); // pattern count
+    if(err != ERR_SUCCESS) {
+      printf("error reading pattern count, %d (%02x)\n", err, err);
+      return err;
+    }
+    printf("Patterns: %d\n", text[0]);
 
-    pattern_load(track.pattern, file_dev);
+    err = pattern_load(track.pattern, file_dev);
+    if(err != ERR_SUCCESS) {
+      printf("error loading patterns, %d (%02x)\n", err, err);
+      return err;
+    }
 
     // for(uint8_t i = 0; i < STEPS_PER_PATTERN; i++) {
     //   printf(
@@ -314,8 +349,8 @@ zos_err_t file_load(void) {
   return ERR_SUCCESS;
 }
 
-zos_err_t file_save(void) {
-  zos_dev_t file_dev = open("track.zmt", O_WRONLY | O_CREAT | O_TRUNC);
+zos_err_t file_save(const char *filename) {
+  zos_dev_t file_dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
   if(file_dev < 0) {
     printf("failed to open file for savings, %d (%02x)", -file_dev, -file_dev);
     return -file_dev;
@@ -353,7 +388,7 @@ uint8_t input(void) {
   zos_err_t err = read(DEV_STDIN, key_buffer, &size);
   if (err != ERR_SUCCESS) {
     printf("Failed to read from DEV_STDIN\n");
-    exit(3);
+    exit(err);
   }
   // window_gotoxy(&winDebug, 0, 0);
   // sprintf(text, "Character: %d (%02x)\n", c, c);
@@ -375,81 +410,10 @@ uint8_t input(void) {
       case KB_ESC: {
         return ACTION_QUIT;
       } break;
-      case KB_KEY_1: {
-        ACTIVATE_VOICE(0);
-      } break;
-      case KB_KEY_2: {
-        ACTIVATE_VOICE(1);
-      } break;
-      case KB_KEY_3: {
-        ACTIVATE_VOICE(2);
-      } break;
-      case KB_KEY_4: {
-        ACTIVATE_VOICE(3);
-      } break;
-
-      case KB_DOWN_ARROW: {
-        uint8_t old_step = active_step;
-        active_step++;
-        if(active_step > 15) active_step = 0;
-        refresh_step(active_voice_index, old_step); // redraw to remove highlight
-      } break;
-      case KB_UP_ARROW: {
-        uint8_t old_step = active_step;
-        if(active_step > 0) active_step--;
-        else active_step = 15;
-        refresh_step(active_voice_index, old_step); // redraw to remove highlight
-      } break;
-      case KB_HOME: {
-        uint8_t old_step = active_step;
-        active_step = 0;
-        refresh_step(active_voice_index, old_step); // redraw to remove highlight
-      } break;
-      case KB_END: {
-        uint8_t old_step = active_step;
-        active_step = 15;
-        refresh_step(active_voice_index, old_step); // redraw to remove highlight
-      } break;
-
-      case KB_KEY_TAB: {
-        active_cell++;
-        if(active_cell > 3) active_cell = 0;
-      } break;
-
-      case KB_RIGHT_ARROW: {
-        update_cell(active_voice, 1);
-        last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
-      } break;
-      case KB_LEFT_ARROW: {
-        update_cell(active_voice, -1);
-        last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
-      } break;
-      case KB_PG_UP: {
-        update_cell(active_voice, 100);
-        last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
-      } break;
-      case KB_PG_DOWN: {
-        update_cell(active_voice, -100);
-        last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
-      } break;
-      case KB_INSERT: {
-        // copy last_step_edit
-        track.pattern->voices[active_voice_index]->steps[active_step].freq = last_step_edit->freq;
-        track.pattern->voices[active_voice_index]->steps[active_step].waveform = last_step_edit->waveform;
-        track.pattern->voices[active_voice_index]->steps[active_step].fx1 = last_step_edit->fx1;
-        track.pattern->voices[active_voice_index]->steps[active_step].fx2 = last_step_edit->fx2;
-      } break;
-      case KB_DELETE: {
-        // delete current step
-        track.pattern->voices[active_voice_index]->steps[active_step].freq = 0xFFFF;
-        track.pattern->voices[active_voice_index]->steps[active_step].waveform = 0xFF;
-        track.pattern->voices[active_voice_index]->steps[active_step].fx1 = 0xFF;
-        track.pattern->voices[active_voice_index]->steps[active_step].fx2 = 0xFF;
-      } break;
-
       /** TRANSPORT */
       case KB_KEY_SPACE: {
         if(state == T_NONE) {
+          cursor(0);
           state = T_PLAY;
           frames = 0;
           gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
@@ -458,40 +422,123 @@ uint8_t input(void) {
           cputc(242);
         } else {
           state = T_NONE;
+          // stop sound
+          zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
           gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
           textcolor(winMain.fg);
           bgcolor(winMain.bg);
           cputs("      "); // clear the "> nnn" from the frame counter
-
+          refresh_steps(playing_step);
+          cursor(1);
         }
-        // music_transport(state, music_frame());
       } break;
+    }
+
+    if(state == T_NONE) {
+      switch(c) {
+        // case KB_ESC: {
+        //   return ACTION_QUIT;
+        // } break;
+        case KB_KEY_1: {
+          ACTIVATE_VOICE(0);
+        } break;
+        case KB_KEY_2: {
+          ACTIVATE_VOICE(1);
+        } break;
+        case KB_KEY_3: {
+          ACTIVATE_VOICE(2);
+        } break;
+        case KB_KEY_4: {
+          ACTIVATE_VOICE(3);
+        } break;
+
+        case KB_DOWN_ARROW: {
+          uint8_t old_step = active_step;
+          active_step++;
+          if(active_step > 15) active_step = 0;
+          refresh_step(active_voice_index, old_step); // redraw to remove highlight
+        } break;
+        case KB_UP_ARROW: {
+          uint8_t old_step = active_step;
+          if(active_step > 0) active_step--;
+          else active_step = 15;
+          refresh_step(active_voice_index, old_step); // redraw to remove highlight
+        } break;
+        case KB_HOME: {
+          uint8_t old_step = active_step;
+          active_step = 0;
+          refresh_step(active_voice_index, old_step); // redraw to remove highlight
+        } break;
+        case KB_END: {
+          uint8_t old_step = active_step;
+          active_step = 15;
+          refresh_step(active_voice_index, old_step); // redraw to remove highlight
+        } break;
+
+        case KB_KEY_TAB: {
+          active_cell++;
+          if(active_cell > 3) active_cell = 0;
+        } break;
+
+        case KB_RIGHT_ARROW: {
+          update_cell(active_voice, 1);
+          last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+        } break;
+        case KB_LEFT_ARROW: {
+          update_cell(active_voice, -1);
+          last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+        } break;
+        case KB_PG_UP: {
+          update_cell(active_voice, 100);
+          last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+        } break;
+        case KB_PG_DOWN: {
+          update_cell(active_voice, -100);
+          last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+        } break;
+        case KB_INSERT: {
+          // copy last_step_edit
+          track.pattern->voices[active_voice_index]->steps[active_step].freq = last_step_edit->freq;
+          track.pattern->voices[active_voice_index]->steps[active_step].waveform = last_step_edit->waveform;
+          track.pattern->voices[active_voice_index]->steps[active_step].fx1 = last_step_edit->fx1;
+          track.pattern->voices[active_voice_index]->steps[active_step].fx2 = last_step_edit->fx2;
+        } break;
+        case KB_DELETE: {
+          // delete current step
+          track.pattern->voices[active_voice_index]->steps[active_step].freq = 0xFFFF;
+          track.pattern->voices[active_voice_index]->steps[active_step].waveform = 0xFF;
+          track.pattern->voices[active_voice_index]->steps[active_step].fx1 = 0xFF;
+          track.pattern->voices[active_voice_index]->steps[active_step].fx2 = 0xFF;
+        } break;
+      }
     }
   }
   return 0;
 }
 
-int main(void) {
+int main(int argc, char** argv) {
   zos_err_t err;
 
   err = keyboard_init();
   if (err != ERR_SUCCESS) {
     printf("Failed to init keyboard: %d\n", err);
-    exit(1);
+    exit(err);
   }
   err = keyboard_flush();
   if (err != ERR_SUCCESS) {
     printf("Failed to flush keyboard: %d\n", err);
-    exit(1);
+    exit(err);
   }
 
-  // zvb_sound_initialize(1);
-  // zvb_sound_set_voices(VOICE0 | VOICE1 | VOICE2 | VOICE3, 0, WAV_SQUARE);
-  // zvb_sound_set_hold(VOICE0 | VOICE1 | VOICE2 | VOICE3, 0);
-  // zvb_sound_set_volume(VOL_75);
-  // zvb_sound_reset();
-
-  err = file_load();
+  if(argc == 1) {
+    err = file_load(argv[0]);
+    if (err != ERR_SUCCESS) {
+      printf("Failed to load data file: %d\n", err);
+      exit(err);
+    }
+  } else {
+    pattern_init(track.pattern);
+  }
 
   cursor(0);
   window(&winMain);
@@ -509,65 +556,108 @@ int main(void) {
 
   window_puts(&winDebug, track.title);
 
+  zvb_sound_initialize(1);
+  zvb_sound_set_volume(VOL_75);
+  zvb_sound_set_hold(VOICEALL, 0);
+  zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
+
   ACTIVATE_VOICE(0);
   last_step_edit = &track.pattern->voices[0]->steps[active_step];
   cursor(1);
 
   while(1) {
-    gfx_wait_vblank(NULL);
-    if(state == T_PLAY) {
-      frames++;
-      if(frames > FRAMES_PER_QUARTER) frames = 0;
-      // if(frames % FRAMES_PER_EIGTH == 0) { }
-      if(frames % FRAMES_PER_SIXTEENTH == 0) {
-        gotoxy(win_Pattern1.x + 2, win_Pattern1.y - 2);
-        sprintf(text, "%03u", frames);
-        cputs(text);
-        uint8_t current_step = playing_step;
-        playing_step++;
-        if(playing_step > 15) playing_step = 0;
-
-        // reset previous step
-        refresh_step(0, current_step);
-        refresh_step(1, current_step);
-        refresh_step(2, current_step);
-        refresh_step(3, current_step);
-        // update current step
-        refresh_step(0, playing_step);
-        refresh_step(1, playing_step);
-        refresh_step(2, playing_step);
-        refresh_step(3, playing_step);
-
-        // play_step(playing_step);
-      }
-    }
-
     uint8_t action = input();
     switch(action) {
       case ACTION_QUIT:
-        goto exit;
+        goto __exit;
     }
 
-    uint8_t cx = track.windows[active_voice_index]->x + 2;
-    uint8_t cy = track.windows[active_voice_index]->y + 2 + active_step;
-    switch(active_cell) {
-      // case 0: break; // nothing to do here
-      case 1: cx += 6; break;
-      case 2: cx += 8; break;
-      case 3: cx += 11; break;
+    gfx_wait_vblank(NULL);
+    TSTATE_LOG(1);
+    switch(state) {
+      case T_PLAY: {
+        frames++;
+        if(frames > FRAMES_PER_QUARTER) frames = 0;
+        // if(frames % FRAMES_PER_EIGTH == 0) { }
+        if(frames % FRAMES_PER_SIXTEENTH == 0) {
+          gotoxy(win_Pattern1.x + 2, win_Pattern1.y - 2);
+          sprintf(textbuff, "%03u", frames);
+          cputs(textbuff);
+          uint8_t current_step = playing_step;
+          playing_step++;
+          if(playing_step > 15) playing_step = 0;
+
+          refresh_steps(current_step); // reset previous step
+          refresh_steps(playing_step); // update current step
+          play_steps(playing_step);
+        }
+      } break;
+      case T_NONE: {
+        uint8_t cx = track.windows[active_voice_index]->x + 2;
+        uint8_t cy = track.windows[active_voice_index]->y + 2 + active_step;
+        switch(active_cell) {
+          // case 0: break; // nothing to do here
+          case 1: cx += 6; break;
+          case 2: cx += 8; break;
+          case 3: cx += 11; break;
+        }
+
+        gotoxy(cx, cy);
+        refresh_step(active_voice_index, active_step);
+      } break;
     }
 
-    gotoxy(cx, cy);
-    refresh_step(active_voice_index, active_step);
+    TSTATE_LOG(1);
     gfx_wait_end_vblank(NULL);
   }
 
-exit:
+__exit:
 
-  err = file_save();
+  zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
+  zvb_sound_set_hold(VOICEALL, 1);
+  zvb_sound_set_volume(VOL_0);
 
   // reset the screen
   err = ioctl(DEV_STDOUT, CMD_RESET_SCREEN, NULL);
+  if(err != ERR_SUCCESS) {
+    printf("error reseting screen, %d (%02x)\n", err, err);
+    exit(err);
+  }
 
+  keyboard_flush();
+  void* arg = (void*) (KB_READ_BLOCK | KB_MODE_COOKED);
+  err = ioctl(DEV_STDIN, KB_CMD_SET_MODE, arg);
+  if(err != ERR_SUCCESS) {
+    printf("Failed to change keyboard mode %d (%02x)\n", err, err);
+    exit(1);
+  }
+
+  uint16_t size = 0;
+  do {
+    printf("Enter filename to save recording, press enter to quit without saving %d:\n", size);
+    size = sizeof(textbuff);
+    err = read(DEV_STDIN, textbuff, &size);
+    if(err != ERR_SUCCESS) {
+        printf("keyboard error: %d (%02x)\n", err, err);
+    }
+
+    if(size > 0) {
+      switch(textbuff[0]) {
+        case KB_KEY_ENTER:
+          printf("File not saved\n");
+          break;
+        default:
+          textbuff[size - 1] = 0x00;
+          err = file_save(textbuff);
+          if(err != ERR_SUCCESS) {
+            printf("error saving file, %d (%02x)\n", err, err);
+            exit(err);
+          }
+          goto __final;
+      }
+    }
+  } while(size == 0);
+
+__final:
   return err;
 }
