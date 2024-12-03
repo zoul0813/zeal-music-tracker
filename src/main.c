@@ -623,6 +623,7 @@ __exit:
     exit(1);
   }
 
+  MAP_TEXT();
   uint16_t size = 0;
   do {
     printf("Enter filename to save recording, press enter to quit without saving %d:\n", size);
