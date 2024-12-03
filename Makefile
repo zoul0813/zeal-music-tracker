@@ -94,9 +94,21 @@ endif
 
 GFX_STRIP = 48
 
-include $(ZGDK_PATH)/base_sdcc.mk
+# include $(ZGDK_PATH)/base_sdcc.mk
+include $(ZVB_SDK_PATH)/sdcc/base_sdcc.mk
 
 ## Add your own rules here
 
 # all::
 # 	cp assets/sample.ptz bin/sample.ptz
+
+STAT_BYTES = stat
+ifeq ($(detected_OS),Darwin)
+	STAT_BYTES += -f %z
+# TODO: Support Windows?
+else
+	STAT_BYTES += -c %s
+endif
+
+all::
+	@echo "Binary Size" $$($(STAT_BYTES) $(OUTPUT_DIR)/$(BIN)) $(BIN)

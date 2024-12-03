@@ -1,5 +1,5 @@
-#include <zgdk.h>
-
+#include <stdio.h>
+// #include <zgdk.h>
 #include "tracker.h"
 
 zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev) {

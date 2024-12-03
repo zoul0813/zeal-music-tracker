@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include <zos_vfs.h>
-#include <zgdk.h>
+// #include <zgdk.h>
 
 #ifndef TRACKER_H
 #define TRACKER_H

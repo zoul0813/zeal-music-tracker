@@ -20,6 +20,8 @@
   "random": "c",
   "istream": "c",
   "mutex": "c",
-  "source_location": "cpp"
+  "source_location": "cpp",
+  "complex": "c",
+  "format": "c"
 },
 }

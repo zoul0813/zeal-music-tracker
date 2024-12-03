@@ -1,16 +1,20 @@
 #include <stdio.h>
 #include <string.h>
+
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_errors.h>
 #include <zos_keyboard.h>
 #include <zos_video.h>
+#include <zvb_gfx.h>
 #include <zvb_sound.h>
-#include <zgdk.h>
+
+#include "zmt.h"
 #include "conio.h"
 #include "windows.h"
 #include "tracker.h"
 
+#define VOICEALL              (VOICE0 | VOICE1 | VOICE2 | VOICE3)
 #define FRAMES_PER_QUARTER    (32U)
 #define FRAMES_PER_EIGTH      (FRAMES_PER_QUARTER >> 1)
 #define FRAMES_PER_SIXTEENTH  (FRAMES_PER_QUARTER >> 2)
@@ -18,8 +22,8 @@
 
 #define ACTION_QUIT           1
 
-const char dummy[5];
-char textbuff[SCREEN_COL80_WIDTH];
+static const char dummy[4];
+static char textbuff[SCREEN_COL80_WIDTH];
 
 typedef struct {
   char title[TRACKER_TITLE_LEN + 1];
@@ -119,7 +123,7 @@ window_t winDebug = {
 };
 
 track_t track = {
-  .title = "Voice 1",
+  .title = "Track 1",
   .windows = {
     &win_Pattern1,
     &win_Pattern2,
@@ -135,19 +139,21 @@ step_t* last_step_edit = NULL;
 uint8_t active_voice_index = 0;
 uint8_t active_cell = 0;
 uint8_t active_step = 0;
-uint8_t playing_step = 0;
+uint8_t playing_step = STEPS_PER_PATTERN;
 uint16_t frames = 0;
 
-music_state_t state = T_NONE;
+playback_state_t state = T_NONE;
 
 #define ACTIVATE_VOICE(index) \
   active_voice_index = index; \
-  active_voice = track.pattern->voices[index]; \
-  window_gotoxy(track.windows[index], 0, 0); \
-  gotoxy(track.windows[index]->x + 2, track.windows[index]->y + 2);
+  active_voice = track.pattern->voices[index];
+  // window_gotoxy(track.windows[index], 0, 0);
+  // gotoxy(track.windows[index]->x + 2, track.windows[index]->y + 2);
 
+#define MAP_SOUND()   zvb_map_peripheral(ZVB_PERI_SOUND_IDX)
+#define MAP_TEXT()    zvb_map_peripheral(ZVB_PERI_TEXT_IDX)
 
-static void update_cell(voice_t *voice, int8_t amount) {
+void update_cell(voice_t *voice, int8_t amount) {
   step_t *step = &voice->steps[active_step];
   switch(active_cell) {
     case Cell_Frequency:
@@ -171,7 +177,7 @@ static void update_cell(voice_t *voice, int8_t amount) {
   }
 }
 
-static void refresh_step(uint8_t voice_index, uint8_t step_index) {
+void refresh_step(uint8_t voice_index, uint8_t step_index) {
   window_t *w = track.windows[voice_index];
   voice_t *voice = track.pattern->voices[voice_index];
   step_t *step = &voice->steps[step_index];
@@ -216,47 +222,38 @@ static void refresh_step(uint8_t voice_index, uint8_t step_index) {
   }
 }
 
-static void refresh_steps(uint8_t step_index) {
+void refresh_steps(uint8_t step_index) {
+  if(step_index >= STEPS_PER_PATTERN) return;
   refresh_step(0, step_index);
   refresh_step(1, step_index);
   refresh_step(2, step_index);
   refresh_step(3, step_index);
 }
 
-static void play_step(step_t *step, sound_voice_t voice) {
-  // uint16_t freq = step->freq;
-  uint8_t waveform = step->waveform;
-  // uint8_t fx1 = step->fx1;
-  // uint8_t fx2 = step->fx2;
-
+static inline void play_step(step_t *step, sound_voice_t voice) {
+  // TODO: manage adjusting things on the fly ... ?
   if(step->freq != 0xFFFF) {
+    uint8_t waveform = step->waveform;
     if(waveform > 0x03) waveform = WAV_SQUARE;
     waveform &= 03;
-    sprintf(textbuff, "%02x %05u %02x %02x %02x", voice, step->freq, waveform & 0x03, step->fx1, step->fx2);
-    cputs(textbuff);
     zvb_sound_set_voices(voice, SOUND_FREQ_TO_DIV(step->freq), waveform);
   }
 }
 
-static void play_steps(uint8_t step_index) {
+void play_steps(uint8_t step_index) {
   step_t *step1 = &track.pattern->voices[0]->steps[step_index];
   step_t *step2 = &track.pattern->voices[1]->steps[step_index];
   step_t *step3 = &track.pattern->voices[2]->steps[step_index];
   step_t *step4 = &track.pattern->voices[3]->steps[step_index];
-  gotoxy(2, 9);
-  // sprintf(textbuff, "Step %02u", step_index);
-  // cputs(textbuff);
-  gotoxy(2, 10);
+  MAP_SOUND();
   play_step(step1, VOICE0);
-  gotoxy(2, 11);
   play_step(step2, VOICE1);
-  gotoxy(2, 12);
   play_step(step3, VOICE2);
-  gotoxy(2, 13);
   play_step(step4, VOICE3);
+  MAP_TEXT();
 }
 
-static void refresh_track(uint8_t voice_index) {
+void refresh_track(uint8_t voice_index) {
   // track_t *track = &tracks[track_index];
   voice_t *voice = track.pattern->voices[voice_index];
   window_t *window = track.windows[voice_index];
@@ -268,7 +265,7 @@ static void refresh_track(uint8_t voice_index) {
   }
 }
 
-static void refresh_help(void) {
+void refresh_help(void) {
   window_gotoxy(&winHelp, 0, 0);
   window_puts(&winHelp, "       Esc: Quit\n");
   window_puts(&winHelp, "       1-4: Change Voice\n");
@@ -380,24 +377,22 @@ zos_err_t file_save(const char *filename) {
   return ERR_SUCCESS;
 }
 
-static uint8_t key_buffer[36];
-uint8_t input(void) {
-  // unsigned char c = cgetc();
+zos_err_t kb_mode(void *arg) {
+//  void* arg = (void*) (KB_READ_NON_BLOCK | KB_MODE_RAW);
+  return ioctl(DEV_STDIN, KB_CMD_SET_MODE, arg);
+}
 
-  uint16_t size = sizeof(key_buffer);
-  zos_err_t err = read(DEV_STDIN, key_buffer, &size);
+uint8_t input(void) {
+  uint16_t size = sizeof(textbuff);
+  zos_err_t err = read(DEV_STDIN, textbuff, &size);
   if (err != ERR_SUCCESS) {
     printf("Failed to read from DEV_STDIN\n");
     exit(err);
   }
-  // window_gotoxy(&winDebug, 0, 0);
-  // sprintf(text, "Character: %d (%02x)\n", c, c);
-  // window_puts(&winDebug, text);
 
   uint8_t i = 0;
-  // uint8_t released = 0;
   for(i = 0; i < size; i++) {
-    const char c = key_buffer[i];
+    const char c = textbuff[i];
 
     if(c == 0) break;
     if(c == KB_RELEASED) {
@@ -416,6 +411,7 @@ uint8_t input(void) {
           cursor(0);
           state = T_PLAY;
           frames = 0;
+          playing_step = STEPS_PER_PATTERN;
           gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
           textcolor(TEXT_COLOR_RED);
           bgcolor(winMain.bg);
@@ -423,7 +419,9 @@ uint8_t input(void) {
         } else {
           state = T_NONE;
           // stop sound
+          MAP_SOUND();
           zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
+          MAP_TEXT();
           gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
           textcolor(winMain.fg);
           bgcolor(winMain.bg);
@@ -519,14 +517,9 @@ uint8_t input(void) {
 int main(int argc, char** argv) {
   zos_err_t err;
 
-  err = keyboard_init();
-  if (err != ERR_SUCCESS) {
-    printf("Failed to init keyboard: %d\n", err);
-    exit(err);
-  }
-  err = keyboard_flush();
-  if (err != ERR_SUCCESS) {
-    printf("Failed to flush keyboard: %d\n", err);
+  err = kb_mode((void *)(KB_READ_NON_BLOCK | KB_MODE_RAW));
+  if(err != ERR_SUCCESS) {
+    printf("failed to init keyboard, %d (%02x)\n", err, err);
     exit(err);
   }
 
@@ -556,10 +549,14 @@ int main(int argc, char** argv) {
 
   window_puts(&winDebug, track.title);
 
-  zvb_sound_initialize(1);
+  state = T_NONE;
+
+  zvb_sound_reset();
   zvb_sound_set_volume(VOL_75);
   zvb_sound_set_hold(VOICEALL, 0);
   zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
+
+  MAP_TEXT();
 
   ACTIVATE_VOICE(0);
   last_step_edit = &track.pattern->voices[0]->steps[active_step];
@@ -573,16 +570,11 @@ int main(int argc, char** argv) {
     }
 
     gfx_wait_vblank(NULL);
-    TSTATE_LOG(1);
     switch(state) {
       case T_PLAY: {
-        frames++;
         if(frames > FRAMES_PER_QUARTER) frames = 0;
         // if(frames % FRAMES_PER_EIGTH == 0) { }
         if(frames % FRAMES_PER_SIXTEENTH == 0) {
-          gotoxy(win_Pattern1.x + 2, win_Pattern1.y - 2);
-          sprintf(textbuff, "%03u", frames);
-          cputs(textbuff);
           uint8_t current_step = playing_step;
           playing_step++;
           if(playing_step > 15) playing_step = 0;
@@ -591,6 +583,7 @@ int main(int argc, char** argv) {
           refresh_steps(playing_step); // update current step
           play_steps(playing_step);
         }
+        frames++;
       } break;
       case T_NONE: {
         uint8_t cx = track.windows[active_voice_index]->x + 2;
@@ -607,15 +600,15 @@ int main(int argc, char** argv) {
       } break;
     }
 
-    TSTATE_LOG(1);
     gfx_wait_end_vblank(NULL);
   }
 
 __exit:
-
+  MAP_SOUND();
   zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
   zvb_sound_set_hold(VOICEALL, 1);
   zvb_sound_set_volume(VOL_0);
+
 
   // reset the screen
   err = ioctl(DEV_STDOUT, CMD_RESET_SCREEN, NULL);
@@ -624,9 +617,7 @@ __exit:
     exit(err);
   }
 
-  keyboard_flush();
-  void* arg = (void*) (KB_READ_BLOCK | KB_MODE_COOKED);
-  err = ioctl(DEV_STDIN, KB_CMD_SET_MODE, arg);
+  kb_mode((void*) (KB_READ_BLOCK | KB_MODE_COOKED));
   if(err != ERR_SUCCESS) {
     printf("Failed to change keyboard mode %d (%02x)\n", err, err);
     exit(1);
