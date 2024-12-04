@@ -94,6 +94,10 @@ endif
 
 GFX_STRIP = 48
 
+ifeq ($(EMULATOR), 1)
+ZOS_CFLAGS += -DEMULATOR=1
+endif
+
 # include $(ZGDK_PATH)/base_sdcc.mk
 include $(ZVB_SDK_PATH)/sdcc/base_sdcc.mk
 

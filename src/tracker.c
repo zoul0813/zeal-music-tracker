@@ -1,135 +1,136 @@
 #include <stdio.h>
 // #include <zgdk.h>
+#include <zvb_sound.h>
 #include "tracker.h"
 
 note_t NOTES[] = {
   /* Octave 0 */
-  16, // C0
-  17, // C#0
-  18, // D0
-  19, // D#0
-  21, // E0
-  22, // F0
-  23, // F#0
-  24, // G0
-  26, // G#0
-  27, // A0
-  29, // A#0
-  31, // B0
+  SOUND_FREQ_TO_DIV(16), // C0
+  SOUND_FREQ_TO_DIV(17), // C#0
+  SOUND_FREQ_TO_DIV(18), // D0
+  SOUND_FREQ_TO_DIV(19), // D#0
+  SOUND_FREQ_TO_DIV(21), // E0
+  SOUND_FREQ_TO_DIV(22), // F0
+  SOUND_FREQ_TO_DIV(23), // F#0
+  SOUND_FREQ_TO_DIV(24), // G0
+  SOUND_FREQ_TO_DIV(26), // G#0
+  SOUND_FREQ_TO_DIV(27), // A0
+  SOUND_FREQ_TO_DIV(29), // A#0
+  SOUND_FREQ_TO_DIV(31), // B0
 
   /* Octave 1 */
-  33, // C1
-  35, // C#1
-  37, // D1
-  39, // D#1
-  41, // E1
-  44, // F1
-  47, // F#1
-  49, // G1
-  52, // G#1
-  55, // A1
-  59, // A#1
-  62, // B1
+  SOUND_FREQ_TO_DIV(33), // C1
+  SOUND_FREQ_TO_DIV(35), // C#1
+  SOUND_FREQ_TO_DIV(37), // D1
+  SOUND_FREQ_TO_DIV(39), // D#1
+  SOUND_FREQ_TO_DIV(41), // E1
+  SOUND_FREQ_TO_DIV(44), // F1
+  SOUND_FREQ_TO_DIV(47), // F#1
+  SOUND_FREQ_TO_DIV(49), // G1
+  SOUND_FREQ_TO_DIV(52), // G#1
+  SOUND_FREQ_TO_DIV(55), // A1
+  SOUND_FREQ_TO_DIV(59), // A#1
+  SOUND_FREQ_TO_DIV(62), // B1
 
   /* Octave 2 */
-  65,  // C2
-  69,  // C#2
-  73,  // D2
-  78,  // D#2
-  82,  // E2
-  87,  // F2
-  92,  // F#2
-  98,  // G2
-  104, // G#2
-  110, // A2
-  117, // A#2
-  123, // B2
+  SOUND_FREQ_TO_DIV(65),  // C2
+  SOUND_FREQ_TO_DIV(69),  // C#2
+  SOUND_FREQ_TO_DIV(73),  // D2
+  SOUND_FREQ_TO_DIV(78),  // D#2
+  SOUND_FREQ_TO_DIV(82),  // E2
+  SOUND_FREQ_TO_DIV(87),  // F2
+  SOUND_FREQ_TO_DIV(92),  // F#2
+  SOUND_FREQ_TO_DIV(98),  // G2
+  SOUND_FREQ_TO_DIV(104), // G#2
+  SOUND_FREQ_TO_DIV(110), // A2
+  SOUND_FREQ_TO_DIV(117), // A#2
+  SOUND_FREQ_TO_DIV(123), // B2
 
   /* Octave 3 */
-  131,  // C3
-  139,  // C#3
-  147,  // D3
-  156,  // D#3
-  165,  // E3
-  175,  // F3
-  185,  // F#3
-  196,  // G3
-  208, // G#3
-  220, // A3
-  233, // A#3
-  247, // B3
+  SOUND_FREQ_TO_DIV(131),  // C3
+  SOUND_FREQ_TO_DIV(139),  // C#3
+  SOUND_FREQ_TO_DIV(147),  // D3
+  SOUND_FREQ_TO_DIV(156),  // D#3
+  SOUND_FREQ_TO_DIV(165),  // E3
+  SOUND_FREQ_TO_DIV(175),  // F3
+  SOUND_FREQ_TO_DIV(185),  // F#3
+  SOUND_FREQ_TO_DIV(196),  // G3
+  SOUND_FREQ_TO_DIV(208), // G#3
+  SOUND_FREQ_TO_DIV(220), // A3
+  SOUND_FREQ_TO_DIV(233), // A#3
+  SOUND_FREQ_TO_DIV(247), // B3
 
   /* Octave 4 */
-  262,  // C4
-  277,  // C#4
-  294,  // D4
-  311,  // D#4
-  330,  // E4
-  349,  // F4
-  370,  // F#4
-  392,  // G4
-  415, // G#4
-  440, // A4
-  466, // A#4
-  494, // B4
+  SOUND_FREQ_TO_DIV(262),  // C4
+  SOUND_FREQ_TO_DIV(277),  // C#4
+  SOUND_FREQ_TO_DIV(294),  // D4
+  SOUND_FREQ_TO_DIV(311),  // D#4
+  SOUND_FREQ_TO_DIV(330),  // E4
+  SOUND_FREQ_TO_DIV(349),  // F4
+  SOUND_FREQ_TO_DIV(370),  // F#4
+  SOUND_FREQ_TO_DIV(392),  // G4
+  SOUND_FREQ_TO_DIV(415), // G#4
+  SOUND_FREQ_TO_DIV(440), // A4
+  SOUND_FREQ_TO_DIV(466), // A#4
+  SOUND_FREQ_TO_DIV(494), // B4
 
   /* Octave 5 */
-  523,  // C5
-  554,  // C#5
-  587,  // D5
-  622,  // D#5
-  659,  // E5
-  698,  // F5
-  740,  // F#5
-  784,  // G5
-  830, // G#5
-  880, // A5
-  932, // A#5
-  988, // B5
+  SOUND_FREQ_TO_DIV(523),  // C5
+  SOUND_FREQ_TO_DIV(554),  // C#5
+  SOUND_FREQ_TO_DIV(587),  // D5
+  SOUND_FREQ_TO_DIV(622),  // D#5
+  SOUND_FREQ_TO_DIV(659),  // E5
+  SOUND_FREQ_TO_DIV(698),  // F5
+  SOUND_FREQ_TO_DIV(740),  // F#5
+  SOUND_FREQ_TO_DIV(784),  // G5
+  SOUND_FREQ_TO_DIV(830), // G#5
+  SOUND_FREQ_TO_DIV(880), // A5
+  SOUND_FREQ_TO_DIV(932), // A#5
+  SOUND_FREQ_TO_DIV(988), // B5
 
   /* Octave 6 */
-  1046,  // C6
-  1109,  // C#6
-  1175,  // D6
-  1244,  // D#6
-  1319,  // E6
-  1397,  // F6
-  1480,  // F#6
-  1568,  // G6
-  1661, // G#6
-  1760, // A6
-  1865, // A#6
-  1975, // B6
+  SOUND_FREQ_TO_DIV(1046),  // C6
+  SOUND_FREQ_TO_DIV(1109),  // C#6
+  SOUND_FREQ_TO_DIV(1175),  // D6
+  SOUND_FREQ_TO_DIV(1244),  // D#6
+  SOUND_FREQ_TO_DIV(1319),  // E6
+  SOUND_FREQ_TO_DIV(1397),  // F6
+  SOUND_FREQ_TO_DIV(1480),  // F#6
+  SOUND_FREQ_TO_DIV(1568),  // G6
+  SOUND_FREQ_TO_DIV(1661), // G#6
+  SOUND_FREQ_TO_DIV(1760), // A6
+  SOUND_FREQ_TO_DIV(1865), // A#6
+  SOUND_FREQ_TO_DIV(1975), // B6
 
   /* Octave 7 */
-  2093,  // C7
-  2217,  // C#7
-  2349,  // D7
-  2489,  // D#7
-  2637,  // E7
-  2794,  // F7
-  2960,  // F#7
-  3136,  // G7
-  3322, // G#7
-  3520, // A7
-  3729, // A#7
-  3951, // B7
+  SOUND_FREQ_TO_DIV(2093),  // C7
+  SOUND_FREQ_TO_DIV(2217),  // C#7
+  SOUND_FREQ_TO_DIV(2349),  // D7
+  SOUND_FREQ_TO_DIV(2489),  // D#7
+  SOUND_FREQ_TO_DIV(2637),  // E7
+  SOUND_FREQ_TO_DIV(2794),  // F7
+  SOUND_FREQ_TO_DIV(2960),  // F#7
+  SOUND_FREQ_TO_DIV(3136),  // G7
+  SOUND_FREQ_TO_DIV(3322), // G#7
+  SOUND_FREQ_TO_DIV(3520), // A7
+  SOUND_FREQ_TO_DIV(3729), // A#7
+  SOUND_FREQ_TO_DIV(3951), // B7
 
   /* Octave 8 */
-  4186,  // C8
-  4435,  // C#8
-  4698,  // D8
-  4978,  // D#8
-  5274,  // E8
-  5588,  // F8
-  5920,  // F#8
-  6272,  // G8
-  6645, // G#8
-  7040, // A8
-  7459, // A#8
-  7902, // B8
+  SOUND_FREQ_TO_DIV(4186),  // C8
+  SOUND_FREQ_TO_DIV(4435),  // C#8
+  SOUND_FREQ_TO_DIV(4698),  // D8
+  SOUND_FREQ_TO_DIV(4978),  // D#8
+  SOUND_FREQ_TO_DIV(5274),  // E8
+  SOUND_FREQ_TO_DIV(5588),  // F8
+  SOUND_FREQ_TO_DIV(5920),  // F#8
+  SOUND_FREQ_TO_DIV(6272),  // G8
+  SOUND_FREQ_TO_DIV(6645), // G#8
+  SOUND_FREQ_TO_DIV(7040), // A8
+  SOUND_FREQ_TO_DIV(7459), // A#8
+  SOUND_FREQ_TO_DIV(7902), // B8
 
-  0xFFFF, // OFF
+  0x0000, // OFF
 };
 
 note_name_t NOTE_NAMES[] = {
@@ -267,7 +268,7 @@ zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev) {
     }
 
     for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
-      size = sizeof(step_t);
+      size = sizeof(step_t) - (sizeof(fx_attr_t) * FX_ATTRS);
       err = read(dev, &voice->steps[j], &size); // step
       if(err != ERR_SUCCESS) {
         printf("error loading pattern steps, %d (%02x) - read %d, expected %d\n", err, err, size, sizeof(step_t));
@@ -290,7 +291,7 @@ zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev) {
     if(err != ERR_SUCCESS) return err;
 
     for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
-      size = sizeof(step_t);
+      size = sizeof(step_t) - (sizeof(fx_attr_t) * FX_ATTRS);
       err = write(dev, &voice->steps[j], &size); // step
       if(err != ERR_SUCCESS) return err;
     }
@@ -300,7 +301,7 @@ zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev) {
 
 void pattern_init(pattern_t *pattern) {
   sprintf(pattern->title, "Pattern 1\x0");
-  pattern->fx_counter = 0xFF;
+  // pattern->fx_counter = 0xFF;
   for(uint8_t i = 0; i < NUM_VOICES; i++) {
     pattern->voices[i]->voice = i;
     for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
@@ -308,6 +309,8 @@ void pattern_init(pattern_t *pattern) {
       pattern->voices[i]->steps[j].waveform = WAVEFORM_OUT_OF_RANGE;
       pattern->voices[i]->steps[j].fx1 = FX_OUT_OF_RANGE;
       pattern->voices[i]->steps[j].fx2 = FX_OUT_OF_RANGE;
+      pattern->voices[i]->steps[j].fx1_attr = 0x00;
+      pattern->voices[i]->steps[j].fx2_attr = 0x00;
     }
   }
 }

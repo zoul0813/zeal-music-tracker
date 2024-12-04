@@ -64,11 +64,15 @@ window_t winHelp = {
   .title = "Controls",
 };
 
+#define PATTERN_WIN_X     5U
+#define PATTERN_WIN_Y     3U
+#define PATTERN_WIN_WIDTH 15U
+
 window_t win_Pattern1 = {
-  .x = 2,
-  .y = TRACK_WINDOW_Y,
+  .x = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 0),
+  .y = PATTERN_WIN_Y,
   .h = 1 + STEPS_PER_PATTERN + 2,
-  .w = 17,
+  .w = PATTERN_WIN_WIDTH,
   .fg = VOICE_WINDOW_FG,
   .bg = VOICE_WINDOW_BG,
   .flags = WIN_BORDER,
@@ -76,10 +80,10 @@ window_t win_Pattern1 = {
 };
 
 window_t win_Pattern2 = {
-  .x = 21,
-  .y = TRACK_WINDOW_Y,
+  .x = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 1),
+  .y = PATTERN_WIN_Y,
   .h = 1 + STEPS_PER_PATTERN + 2,
-  .w = 17,
+  .w = PATTERN_WIN_WIDTH,
   .fg = VOICE_WINDOW_FG,
   .bg = VOICE_WINDOW_BG,
   .flags = WIN_BORDER,
@@ -87,10 +91,10 @@ window_t win_Pattern2 = {
 };
 
 window_t win_Pattern3 = {
-  .x = 40,
-  .y = TRACK_WINDOW_Y,
+  .x = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 2),
+  .y = PATTERN_WIN_Y,
   .h = 1 + STEPS_PER_PATTERN + 2,
-  .w = 17,
+  .w = PATTERN_WIN_WIDTH,
   .fg = VOICE_WINDOW_FG,
   .bg = VOICE_WINDOW_BG,
   .flags = WIN_BORDER,
@@ -98,10 +102,10 @@ window_t win_Pattern3 = {
 };
 
 window_t win_Pattern4 = {
-  .x = 59,
-  .y = TRACK_WINDOW_Y,
+  .x = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 3),
+  .y = PATTERN_WIN_Y,
   .h = 1 + STEPS_PER_PATTERN + 2,
-  .w = 17,
+  .w = PATTERN_WIN_WIDTH,
   .fg = VOICE_WINDOW_FG,
   .bg = VOICE_WINDOW_BG,
   .flags = WIN_BORDER,
@@ -198,6 +202,33 @@ void update_cell(voice_t *voice, int8_t amount) {
   }
 }
 
+void color_step(uint8_t step_index, uint8_t color) {
+  uint8_t x1 = track.windows[0]->x + 2;
+  uint8_t x2 = track.windows[1]->x + 2;
+  uint8_t x3 = track.windows[2]->x + 2;
+  uint8_t x4 = track.windows[3]->x + 2;
+
+  uint8_t y = track.windows[0]->y + 1 + step_index + 1;
+  uint8_t bg = track.windows[0]->bg;
+
+  uint8_t clr = (bg << 4) | (color & 0x0F);
+
+  uint8_t mmu_page_current = mmu_page0_ro;
+  __asm__("di");
+  mmu_page0 = VID_MEM_PHYS_ADDR_START >> 14;
+  // MAGIC: 12 = magic length of the step text :)
+  text_layer1[y * SCREEN_COL80_WIDTH + 2] = (winMain.bg << 4) | color;
+  text_layer1[y * SCREEN_COL80_WIDTH + 3] = (winMain.bg << 4) | color;
+  for(uint8_t i = 0; i < 12; i++) {
+      text_layer1[y * SCREEN_COL80_WIDTH + x1 + i] = clr;
+      text_layer1[y * SCREEN_COL80_WIDTH + x2 + i] = clr;
+      text_layer1[y * SCREEN_COL80_WIDTH + x3 + i] = clr;
+      text_layer1[y * SCREEN_COL80_WIDTH + x4 + i] = clr;
+  }
+  mmu_page0 = mmu_page_current;
+  __asm__("ei");
+}
+
 void refresh_step(uint8_t voice_index, uint8_t step_index) {
   window_t *w = track.windows[voice_index];
   voice_t *voice = track.pattern->voices[voice_index];
@@ -215,9 +246,9 @@ void refresh_step(uint8_t voice_index, uint8_t step_index) {
   }
 
   if(step->note == NOTE_OUT_OF_RANGE) {
-    window_puts_color(w, "---  ", clr);
+    window_puts(w, "---");
   } else {
-    sprintf(textbuff, "%.3s  ", NOTE_NAMES[step->note]);
+    sprintf(textbuff, "%.3s", NOTE_NAMES[step->note]);
     // TODO: more optimized?
     // textbuff[0] = NOTE_NAMES[step->note][0];
     // textbuff[1] = NOTE_NAMES[step->note][1];
@@ -225,29 +256,31 @@ void refresh_step(uint8_t voice_index, uint8_t step_index) {
     // textbuff[3] = ' ';
     // textbuff[4] = ' ';
     // textbuff[5] = 0x00;
-    window_puts_color(w, textbuff, clr);
+    window_puts(w, textbuff);
   }
 
   if(step->waveform == 0xFF) {
-    window_puts_color(w, " - ", clr);
+    window_puts(w, " - ");
   } else {
     sprintf(textbuff, " %01X ", step->waveform & 0xF);
-    window_puts_color(w, textbuff, clr);
+    window_puts(w, textbuff);
   }
 
   if(step->fx1 == 0xFF) {
-    window_puts_color(w, "-- ", clr);
+    window_puts(w, "-- ");
   } else {
     sprintf(textbuff, "%02X ", step->fx1);
-    window_puts_color(w, textbuff, clr);
+    window_puts(w, textbuff);
   }
 
   if(step->fx2 == 0xFF) {
-    window_puts_color(w, "-- ", clr);
+    window_puts(w, "-- ");
   } else {
     sprintf(textbuff, "%02X ", step->fx2);
-    window_puts_color(w, textbuff, clr);
+    window_puts(w, textbuff);
   }
+
+  color_step(step_index, clr);
 }
 
 void refresh_steps(uint8_t step_index) {
@@ -258,33 +291,9 @@ void refresh_steps(uint8_t step_index) {
   refresh_step(3, step_index);
 }
 
-void color_step(uint8_t step_index, uint8_t color) {
-  uint8_t x1 = track.windows[0]->x + 2;
-  uint8_t x2 = track.windows[1]->x + 2;
-  uint8_t x3 = track.windows[2]->x + 2;
-  uint8_t x4 = track.windows[3]->x + 2;
-
-  uint8_t y = track.windows[0]->y + 1 + step_index + 1;
-  uint8_t bg = track.windows[0]->bg;
-
-  uint8_t clr = (bg << 4) | (color & 0x0F);
-
-  uint8_t mmu_page_current = mmu_page0_ro;
-  __asm__("di");
-  mmu_page0 = VID_MEM_PHYS_ADDR_START >> 14;
-  for(uint8_t i = 0; i < 14; i++) {
-      text_layer1[y * SCREEN_COL80_WIDTH + x1 + i] = clr;
-      text_layer1[y * SCREEN_COL80_WIDTH + x2 + i] = clr;
-      text_layer1[y * SCREEN_COL80_WIDTH + x3 + i] = clr;
-      text_layer1[y * SCREEN_COL80_WIDTH + x4 + i] = clr;
-  }
-  mmu_page0 = mmu_page_current;
-  __asm__("ei");
-}
-
-static inline void process_fx(fx_t fx, sound_voice_t voice) {
+static inline void process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
   (void *)voice; // TODO: per channel effects
-  pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
+  // pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
 
   if((fx >= FX_GOTO_0) && (fx <= FX_GOTO_31)) {
     play_next_step = (fx - FX_GOTO_0) - 1;
@@ -296,9 +305,7 @@ static inline void process_fx(fx_t fx, sound_voice_t voice) {
     case FX_NOTE_OFF: { } break;
     case FX_NOTE_ON: { } break;
 
-    case FX_COUNT_0: {
-      // does nothing?
-    } break;
+    case FX_COUNT_0: // fall thru
     case FX_COUNT_1: // fall thru
     case FX_COUNT_2: // fall thru
     case FX_COUNT_3: // fall thru
@@ -307,8 +314,8 @@ static inline void process_fx(fx_t fx, sound_voice_t voice) {
     case FX_COUNT_6: // fall thru
     case FX_COUNT_7: // fall thru
     case FX_COUNT_8: {
-      if(pattern->fx_counter == 0xFF) pattern->fx_counter = (fx - 0xC0);
-      else pattern->fx_counter--;
+      if(step->fx1_attr == 0xFF) step->fx1_attr = (fx - 0xC0);
+      else step->fx1_attr--;
     } break;
 
     // TODO: per channel volume control?
@@ -347,23 +354,23 @@ static inline void process_fx(fx_t fx, sound_voice_t voice) {
 }
 
 static inline void play_step(step_t *step, sound_voice_t voice) {
-  pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
+  // pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
 
   // FX1 is pre-processed
-  if(step->fx1 != FX_OUT_OF_RANGE) process_fx(step->fx1, voice);
+  if(step->fx1 != FX_OUT_OF_RANGE) process_fx(step, step->fx1, voice);
 
   if(step->note != NOTE_OUT_OF_RANGE) {
     note_t note = NOTES[step->note];
     waveform_t waveform = step->waveform;
     if(waveform > 0x03) waveform = WAV_SQUARE;
     waveform &= 03;
-    zvb_sound_set_voices(voice, SOUND_FREQ_TO_DIV(note), waveform);
+    zvb_sound_set_voices(voice, note, waveform);
   }
 
   // only process fx2 if fx1 is not counting, or it has counted down
-  if((step->fx1 >= FX_COUNT_0) && (step->fx1 <= FX_COUNT_8) && (pattern->fx_counter != 0)) return;
+  if((step->fx1 >= FX_COUNT_0) && (step->fx1 <= FX_COUNT_8) && (step->fx1_attr != 0)) return;
   // FX2 is post-processed ... does this matter?
-  if(step->fx2 != FX_OUT_OF_RANGE) process_fx(step->fx2, voice);
+  if(step->fx2 != FX_OUT_OF_RANGE) process_fx(step, step->fx2, voice);
 }
 
 void play_steps(uint8_t step_index) {
@@ -382,7 +389,12 @@ void play_steps(uint8_t step_index) {
 void pattern_reset(void) {
   frames = 0;
   play_next_step = 0;
-  track.pattern->fx_counter = 0xFF;
+  for(uint8_t s = 0; s < STEPS_PER_PATTERN; s++) {
+    for(uint8_t v = 0; v < NUM_VOICES; v++) {
+      track.pattern->voices[v]->steps[s].fx1_attr = 0x00;
+      track.pattern->voices[v]->steps[s].fx2_attr = 0x00;
+    }
+  }
 }
 
 void refresh_track(uint8_t voice_index) {
@@ -391,7 +403,7 @@ void refresh_track(uint8_t voice_index) {
   window_t *window = track.windows[voice_index];
   uint8_t i;
   window_gotoxy(window, 0, 0);
-  window_puts_color(window, " Freq. W F1 F2\n", TEXT_COLOR_WHITE);
+  window_puts_color(window, " No. W F1 F2\n", TEXT_COLOR_WHITE);
   for(i = 0; i < STEPS_PER_PATTERN; i++) {
     refresh_step(voice_index, i);
   }
@@ -657,6 +669,7 @@ uint8_t input(void) {
 
 int main(int argc, char** argv) {
   zos_err_t err;
+  uint8_t i = 0;
 
   err = kb_mode((void *)(KB_READ_NON_BLOCK | KB_MODE_RAW));
   if(err != ERR_SUCCESS) {
@@ -678,11 +691,20 @@ int main(int argc, char** argv) {
   window(&winMain);
   // window(&winDebug);
 
+  // pattern step indicators
+  // textcolor(winMain.fg);
+  // bgcolor(winMain.bg);
+  window_gotoxy(&winMain, 0, PATTERN_WIN_Y + 1);
+  for(i = 0; i <= FX_GOTO_31 - FX_GOTO_0; i++) {
+    sprintf(textbuff, " %02X\n", i + FX_GOTO_0);
+    window_puts(&winMain, textbuff);
+  }
+
   // TODO: hide/show this on F1?
   // window(&winHelp);
   // refresh_help();
 
-  uint8_t i = 0;
+
   for(i = 0; i < NUM_VOICES; i++) {
     window_t *w = track.windows[i];
     window(w);
@@ -712,6 +734,7 @@ int main(int argc, char** argv) {
     }
 
     gfx_wait_vblank(NULL);
+    TSTATE_LOG(1);
     switch(state) {
       case T_PLAY: {
         if(frames > FRAMES_PER_QUARTER) frames = 0;
@@ -728,28 +751,28 @@ int main(int argc, char** argv) {
         }
         frames++;
 
-        // DEBUG
-        gotoxy(win_Pattern1.x + 2, win_Pattern1.y - 2);
-        sprintf(textbuff, "%3u %3u %3u %03u", frames, play_next_step, play_last_step, track.pattern->fx_counter);
-        textcolor(TEXT_COLOR_RED);
-        bgcolor(winMain.bg);
-        cputs(textbuff);
+        // // DEBUG
+        // gotoxy(win_Pattern1.x + 2, win_Pattern1.y - 2);
+        // sprintf(textbuff, "%3u %3u %3u %03u", frames, play_next_step, play_last_step, track.pattern->fx_counter);
+        // textcolor(TEXT_COLOR_RED);
+        // bgcolor(winMain.bg);
+        // cputs(textbuff);
       } break;
       case T_NONE: {
         uint8_t cx = track.windows[active_voice_index]->x + 2;
         uint8_t cy = track.windows[active_voice_index]->y + 2 + active_step;
         switch(active_cell) {
           // case 0: break; // nothing to do here
-          case 1: cx += 6; break;
-          case 2: cx += 8; break;
-          case 3: cx += 11; break;
+          case 1: cx += 4; break;
+          case 2: cx += 6; break;
+          case 3: cx += 9; break;
         }
 
         gotoxy(cx, cy);
         refresh_step(active_voice_index, active_step);
       } break;
     }
-
+    TSTATE_LOG(1);
     gfx_wait_end_vblank(NULL);
   }
 

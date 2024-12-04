@@ -28,7 +28,6 @@
 #define STEPS_PER_PATTERN     32U
 #define NUM_VOICES            4U
 #define TRACKER_TITLE_LEN     12U
-#define TRACK_WINDOW_Y        3U
 
 #define CH_PLAY   242U
 
@@ -100,6 +99,7 @@ typedef enum {
   FX_VOL_100     = 0xF8,
 } FX;
 typedef uint8_t fx_t;
+typedef uint8_t fx_attr_t;
 #define FX_OUT_OF_RANGE         (0xFF)
 
 #define NUM_NOTES               (12 * 9 + 1)
@@ -121,7 +121,13 @@ typedef struct {
   waveform_t waveform;
   fx_t fx1;
   fx_t fx2;
+
+  // values for fx
+  fx_attr_t fx1_attr;
+  fx_attr_t fx2_attr;
 } step_t;
+
+#define FX_ATTRS    2
 
 typedef struct {
   uint8_t voice;
@@ -132,9 +138,6 @@ typedef struct {
   char title[TRACKER_TITLE_LEN];
   voice_t* voices[NUM_VOICES];
   // TODO: add sample voice?
-
-  // values for various FX
-  uint8_t fx_counter;
 } pattern_t;
 
 
