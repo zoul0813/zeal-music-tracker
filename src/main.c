@@ -22,8 +22,12 @@
 
 #define ACTION_QUIT           1
 
-static const char dummy[4];
+static const char dummy[3];
 static char textbuff[SCREEN_COL80_WIDTH];
+
+const __sfr __banked __at(0xF0) mmu_page0_ro;
+__sfr __at(0xF0) mmu_page0;
+uint8_t *text_layer1 = (uint8_t *) 0x1000;
 
 typedef struct {
   char title[TRACKER_TITLE_LEN + 1];
@@ -228,6 +232,30 @@ void refresh_steps(uint8_t step_index) {
   refresh_step(1, step_index);
   refresh_step(2, step_index);
   refresh_step(3, step_index);
+}
+
+void color_step(uint8_t step_index, uint8_t color) {
+  uint8_t x1 = track.windows[0]->x + 2;
+  uint8_t x2 = track.windows[1]->x + 2;
+  uint8_t x3 = track.windows[2]->x + 2;
+  uint8_t x4 = track.windows[3]->x + 2;
+
+  uint8_t y = track.windows[0]->y + 1 + step_index + 1;
+  uint8_t bg = track.windows[0]->bg;
+
+  uint8_t clr = (bg << 4) | (color & 0x0F);
+
+  uint8_t mmu_page_current = mmu_page0_ro;
+  __asm__("di");
+  mmu_page0 = VID_MEM_PHYS_ADDR_START >> 14;
+  for(uint8_t i = 0; i < 14; i++) {
+      text_layer1[y * SCREEN_COL80_WIDTH + x1 + i] = clr;
+      text_layer1[y * SCREEN_COL80_WIDTH + x2 + i] = clr;
+      text_layer1[y * SCREEN_COL80_WIDTH + x3 + i] = clr;
+      text_layer1[y * SCREEN_COL80_WIDTH + x4 + i] = clr;
+  }
+  mmu_page0 = mmu_page_current;
+  __asm__("ei");
 }
 
 static inline void play_step(step_t *step, sound_voice_t voice) {
@@ -579,8 +607,10 @@ int main(int argc, char** argv) {
           playing_step++;
           if(playing_step > 15) playing_step = 0;
 
-          refresh_steps(current_step); // reset previous step
-          refresh_steps(playing_step); // update current step
+          // refresh_steps(current_step); // reset previous step
+          // refresh_steps(playing_step); // update current step
+          color_step(current_step, TEXT_COLOR_LIGHT_GRAY);
+          color_step(playing_step, TEXT_COLOR_CYAN);
           play_steps(playing_step);
         }
         frames++;
