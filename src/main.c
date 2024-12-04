@@ -14,15 +14,7 @@
 #include "windows.h"
 #include "tracker.h"
 
-#define VOICEALL              (VOICE0 | VOICE1 | VOICE2 | VOICE3)
-#define FRAMES_PER_QUARTER    (32U)
-#define FRAMES_PER_EIGTH      (FRAMES_PER_QUARTER >> 1)
-#define FRAMES_PER_SIXTEENTH  (FRAMES_PER_QUARTER >> 2)
-#define FRAMES_PER_STEP       (FRAMES_PER_SIXTEENTH)
-
-#define ACTION_QUIT           1
-
-static const char dummy[3];
+static const char dummy[2];
 static char textbuff[SCREEN_COL80_WIDTH];
 
 const __sfr __banked __at(0xF0) mmu_page0_ro;
@@ -74,57 +66,57 @@ window_t winHelp = {
 
 window_t win_Pattern1 = {
   .x = 2,
-  .y = 18,
+  .y = TRACK_WINDOW_Y,
   .h = 1 + STEPS_PER_PATTERN + 2,
   .w = 17,
-  .fg = TEXT_COLOR_LIGHT_GRAY,
-  .bg = TEXT_COLOR_DARK_BLUE,
+  .fg = VOICE_WINDOW_FG,
+  .bg = VOICE_WINDOW_BG,
   .flags = WIN_BORDER,
   .title = "Voice 1"
 };
 
 window_t win_Pattern2 = {
   .x = 21,
-  .y = 18,
+  .y = TRACK_WINDOW_Y,
   .h = 1 + STEPS_PER_PATTERN + 2,
   .w = 17,
-  .fg = TEXT_COLOR_LIGHT_GRAY,
-  .bg = TEXT_COLOR_DARK_BLUE,
+  .fg = VOICE_WINDOW_FG,
+  .bg = VOICE_WINDOW_BG,
   .flags = WIN_BORDER,
   .title = "Voice 2"
 };
 
 window_t win_Pattern3 = {
   .x = 40,
-  .y = 18,
+  .y = TRACK_WINDOW_Y,
   .h = 1 + STEPS_PER_PATTERN + 2,
   .w = 17,
-  .fg = TEXT_COLOR_LIGHT_GRAY,
-  .bg = TEXT_COLOR_DARK_BLUE,
+  .fg = VOICE_WINDOW_FG,
+  .bg = VOICE_WINDOW_BG,
   .flags = WIN_BORDER,
   .title = "Voice 3"
 };
 
 window_t win_Pattern4 = {
   .x = 59,
-  .y = 18,
+  .y = TRACK_WINDOW_Y,
   .h = 1 + STEPS_PER_PATTERN + 2,
   .w = 17,
-  .fg = TEXT_COLOR_LIGHT_GRAY,
-  .bg = TEXT_COLOR_DARK_BLUE,
+  .fg = VOICE_WINDOW_FG,
+  .bg = VOICE_WINDOW_BG,
   .flags = WIN_BORDER,
   .title = "Voice 4"
 };
 
-window_t winDebug = {
-  .x = 2,
-  .y = 2,
-  .h = 5,
-  .w = 25,
-  .fg = TEXT_COLOR_LIGHT_GRAY,
-  .bg = TEXT_COLOR_BLACK,
-  .title = "Debug"
-};
+// window_t winDebug = {
+//   .x = 2,
+//   .y = 2,
+//   .h = 5,
+//   .w = 25,
+//   .fg = TEXT_COLOR_LIGHT_GRAY,
+//   .bg = TEXT_COLOR_BLACK,
+//   .title = "Debug"
+// };
 
 track_t track = {
   .title = "Track 1",
@@ -143,7 +135,8 @@ step_t* last_step_edit = NULL;
 uint8_t active_voice_index = 0;
 uint8_t active_cell = 0;
 uint8_t active_step = 0;
-uint8_t playing_step = STEPS_PER_PATTERN;
+uint8_t play_next_step = 0;
+uint8_t play_last_step = 0;
 uint16_t frames = 0;
 
 playback_state_t state = T_NONE;
@@ -161,7 +154,27 @@ void update_cell(voice_t *voice, int8_t amount) {
   step_t *step = &voice->steps[active_step];
   switch(active_cell) {
     case Cell_Frequency:
-      step->freq += amount;
+      if(amount > 1) amount = 12;
+      if(amount < -1) amount = -12;
+
+      if(step->note >= NOTE_OUT_OF_RANGE) {
+        if(amount > 0) {
+          step->note = NOTE_MIDDLE_C;
+        } else {
+          step->note = NUM_NOTES - 1;
+        }
+      } else {
+        step->note += amount;
+      }
+      // if(amount < 0) {
+      //   if(step->note >= NOTE_OUT_OF_RANGE) {
+      //     step->note = NUM_NOTES-1;
+      //   }
+      // }
+      // step->note += amount;
+      if(step->note >= NUM_NOTES) {
+        step->note = NOTE_OUT_OF_RANGE;
+      }
       break;
     case Cell_Waveform:
       if(amount < 0 && step->waveform == 0xFF) {
@@ -173,9 +186,13 @@ void update_cell(voice_t *voice, int8_t amount) {
       }
       break;
     case Cell_Effect1:
+      if(amount > 1) amount = 16;
+      if(amount < -1) amount = -16;
       step->fx1 += amount;
       break;
     case Cell_Effect2:
+      if(amount > 1) amount = 16;
+      if(amount < -1) amount = -16;
       step->fx2 += amount;
       break;
   }
@@ -185,44 +202,51 @@ void refresh_step(uint8_t voice_index, uint8_t step_index) {
   window_t *w = track.windows[voice_index];
   voice_t *voice = track.pattern->voices[voice_index];
   step_t *step = &voice->steps[step_index];
-  const char text[17];
+
   window_gotoxy(w, 1, step_index + 1);
 
   // TODO: can this be done once outside of the function?
   uint8_t clr = w->fg;
   if(step_index == active_step) {
-    clr = TEXT_COLOR_YELLOW;
+    clr = VOICE_WINDOW_Hl2;
   }
-  if(state == T_PLAY && step_index == playing_step) {
-    clr = TEXT_COLOR_CYAN;
+  if(state == T_PLAY && step_index == play_next_step) {
+    clr = VOICE_WINDOW_HL1;
   }
 
-  if(step->freq == 0xFFFF) {
-    window_puts_color(w, "-----", clr);
+  if(step->note == NOTE_OUT_OF_RANGE) {
+    window_puts_color(w, "---  ", clr);
   } else {
-    sprintf(text, "%05u", step->freq);
-    window_puts_color(w, text, clr);
+    sprintf(textbuff, "%.3s  ", NOTE_NAMES[step->note]);
+    // TODO: more optimized?
+    // textbuff[0] = NOTE_NAMES[step->note][0];
+    // textbuff[1] = NOTE_NAMES[step->note][1];
+    // textbuff[2] = NOTE_NAMES[step->note][2];
+    // textbuff[3] = ' ';
+    // textbuff[4] = ' ';
+    // textbuff[5] = 0x00;
+    window_puts_color(w, textbuff, clr);
   }
 
   if(step->waveform == 0xFF) {
     window_puts_color(w, " - ", clr);
   } else {
-    sprintf(text, " %01X ", step->waveform & 0xF);
-    window_puts_color(w, text, clr);
+    sprintf(textbuff, " %01X ", step->waveform & 0xF);
+    window_puts_color(w, textbuff, clr);
   }
 
   if(step->fx1 == 0xFF) {
     window_puts_color(w, "-- ", clr);
   } else {
-    sprintf(text, "%02X ", step->fx1);
-    window_puts_color(w, text, clr);
+    sprintf(textbuff, "%02X ", step->fx1);
+    window_puts_color(w, textbuff, clr);
   }
 
   if(step->fx2 == 0xFF) {
     window_puts_color(w, "-- ", clr);
   } else {
-    sprintf(text, "%02X ", step->fx2);
-    window_puts_color(w, text, clr);
+    sprintf(textbuff, "%02X ", step->fx2);
+    window_puts_color(w, textbuff, clr);
   }
 }
 
@@ -258,14 +282,88 @@ void color_step(uint8_t step_index, uint8_t color) {
   __asm__("ei");
 }
 
+static inline void process_fx(fx_t fx, sound_voice_t voice) {
+  (void *)voice; // TODO: per channel effects
+  pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
+
+  if((fx >= FX_GOTO_0) && (fx <= FX_GOTO_31)) {
+    play_next_step = (fx - FX_GOTO_0) - 1;
+    frames = play_next_step % 16; // TODO: yeah?
+    return;
+  }
+
+  switch(fx) {
+    case FX_NOTE_OFF: { } break;
+    case FX_NOTE_ON: { } break;
+
+    case FX_COUNT_0: {
+      // does nothing?
+    } break;
+    case FX_COUNT_1: // fall thru
+    case FX_COUNT_2: // fall thru
+    case FX_COUNT_3: // fall thru
+    case FX_COUNT_4: // fall thru
+    case FX_COUNT_5: // fall thru
+    case FX_COUNT_6: // fall thru
+    case FX_COUNT_7: // fall thru
+    case FX_COUNT_8: {
+      if(pattern->fx_counter == 0xFF) pattern->fx_counter = (fx - 0xC0);
+      else pattern->fx_counter--;
+    } break;
+
+    // TODO: per channel volume control?
+    case FX_VOL_00_0: {
+      zvb_sound_set_volume(VOL_0);
+    } break;
+    case FX_VOL_12_5: {
+      // TODO: 8 step volume control
+      zvb_sound_set_volume(VOL_0);
+    } break;
+    case FX_VOL_25_0: {
+      zvb_sound_set_volume(VOL_25);
+    } break;
+    case FX_VOL_37_5: {
+      // TODO: 8 step volume control
+      zvb_sound_set_volume(VOL_25);
+    } break;
+    case FX_VOL_50_0: {
+      zvb_sound_set_volume(VOL_50);
+    } break;
+    case FX_VOL_62_5: {
+      // TODO: 8 step volume control
+      zvb_sound_set_volume(VOL_50);
+    } break;
+    case FX_VOL_75_0: {
+      zvb_sound_set_volume(VOL_75);
+    } break;
+    case FX_VOL_87_5: {
+      // TODO: 8 step volume control
+      zvb_sound_set_volume(VOL_75);
+    } break;
+    case FX_VOL_100: {
+      zvb_sound_set_volume(VOL_100);
+    } break;
+  }
+}
+
 static inline void play_step(step_t *step, sound_voice_t voice) {
-  // TODO: manage adjusting things on the fly ... ?
-  if(step->freq != 0xFFFF) {
-    uint8_t waveform = step->waveform;
+  pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
+
+  // FX1 is pre-processed
+  if(step->fx1 != FX_OUT_OF_RANGE) process_fx(step->fx1, voice);
+
+  if(step->note != NOTE_OUT_OF_RANGE) {
+    note_t note = NOTES[step->note];
+    waveform_t waveform = step->waveform;
     if(waveform > 0x03) waveform = WAV_SQUARE;
     waveform &= 03;
-    zvb_sound_set_voices(voice, SOUND_FREQ_TO_DIV(step->freq), waveform);
+    zvb_sound_set_voices(voice, SOUND_FREQ_TO_DIV(note), waveform);
   }
+
+  // only process fx2 if fx1 is not counting, or it has counted down
+  if((step->fx1 >= FX_COUNT_0) && (step->fx1 <= FX_COUNT_8) && (pattern->fx_counter != 0)) return;
+  // FX2 is post-processed ... does this matter?
+  if(step->fx2 != FX_OUT_OF_RANGE) process_fx(step->fx2, voice);
 }
 
 void play_steps(uint8_t step_index) {
@@ -281,6 +379,12 @@ void play_steps(uint8_t step_index) {
   MAP_TEXT();
 }
 
+void pattern_reset(void) {
+  frames = 0;
+  play_next_step = 0;
+  track.pattern->fx_counter = 0xFF;
+}
+
 void refresh_track(uint8_t voice_index) {
   // track_t *track = &tracks[track_index];
   voice_t *voice = track.pattern->voices[voice_index];
@@ -288,7 +392,7 @@ void refresh_track(uint8_t voice_index) {
   uint8_t i;
   window_gotoxy(window, 0, 0);
   window_puts_color(window, " Freq. W F1 F2\n", TEXT_COLOR_WHITE);
-  for(i = 0; i < 16; i++) {
+  for(i = 0; i < STEPS_PER_PATTERN; i++) {
     refresh_step(voice_index, i);
   }
 }
@@ -438,12 +542,11 @@ uint8_t input(void) {
         if(state == T_NONE) {
           cursor(0);
           state = T_PLAY;
-          frames = 0;
-          playing_step = STEPS_PER_PATTERN;
+          pattern_reset();
           gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
           textcolor(TEXT_COLOR_RED);
           bgcolor(winMain.bg);
-          cputc(242);
+          cputc(CH_PLAY);
         } else {
           state = T_NONE;
           // stop sound
@@ -453,8 +556,8 @@ uint8_t input(void) {
           gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
           textcolor(winMain.fg);
           bgcolor(winMain.bg);
-          cputs("      "); // clear the "> nnn" from the frame counter
-          refresh_steps(playing_step);
+          cputc(' '); // clear the "> nnn" from the frame counter
+          color_step(play_next_step, VOICE_WINDOW_FG);
           cursor(1);
         }
       } break;
@@ -481,24 +584,28 @@ uint8_t input(void) {
         case KB_DOWN_ARROW: {
           uint8_t old_step = active_step;
           active_step++;
-          if(active_step > 15) active_step = 0;
-          refresh_step(active_voice_index, old_step); // redraw to remove highlight
+          if(active_step > (STEPS_PER_PATTERN - 1)) active_step = 0;
+          color_step(old_step, VOICE_WINDOW_FG);
+          // refresh_step(active_voice_index, old_step); // redraw to remove highlight
         } break;
         case KB_UP_ARROW: {
           uint8_t old_step = active_step;
           if(active_step > 0) active_step--;
-          else active_step = 15;
-          refresh_step(active_voice_index, old_step); // redraw to remove highlight
+          else active_step = (STEPS_PER_PATTERN - 1);
+          color_step(old_step, VOICE_WINDOW_FG);
+          // refresh_step(active_voice_index, old_step); // redraw to remove highlight
         } break;
         case KB_HOME: {
           uint8_t old_step = active_step;
           active_step = 0;
-          refresh_step(active_voice_index, old_step); // redraw to remove highlight
+          color_step(old_step, VOICE_WINDOW_FG);
+          // refresh_step(active_voice_index, old_step); // redraw to remove highlight
         } break;
         case KB_END: {
           uint8_t old_step = active_step;
-          active_step = 15;
-          refresh_step(active_voice_index, old_step); // redraw to remove highlight
+          active_step = (STEPS_PER_PATTERN - 1);
+          color_step(old_step, VOICE_WINDOW_FG);
+          // refresh_step(active_voice_index, old_step); // redraw to remove highlight
         } break;
 
         case KB_KEY_TAB: {
@@ -509,32 +616,38 @@ uint8_t input(void) {
         case KB_RIGHT_ARROW: {
           update_cell(active_voice, 1);
           last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+          // refresh_step(active_voice_index, active_step);
         } break;
         case KB_LEFT_ARROW: {
           update_cell(active_voice, -1);
           last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+          // refresh_step(active_voice_index, active_step);
         } break;
         case KB_PG_UP: {
-          update_cell(active_voice, 100);
+          update_cell(active_voice, 2);
           last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+          // refresh_step(active_voice_index, active_step);
         } break;
         case KB_PG_DOWN: {
-          update_cell(active_voice, -100);
+          update_cell(active_voice, -2);
           last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+          // refresh_step(active_voice_index, active_step);
         } break;
         case KB_INSERT: {
           // copy last_step_edit
-          track.pattern->voices[active_voice_index]->steps[active_step].freq = last_step_edit->freq;
+          track.pattern->voices[active_voice_index]->steps[active_step].note = last_step_edit->note;
           track.pattern->voices[active_voice_index]->steps[active_step].waveform = last_step_edit->waveform;
           track.pattern->voices[active_voice_index]->steps[active_step].fx1 = last_step_edit->fx1;
           track.pattern->voices[active_voice_index]->steps[active_step].fx2 = last_step_edit->fx2;
+          // refresh_step(active_voice_index, active_step);
         } break;
         case KB_DELETE: {
           // delete current step
-          track.pattern->voices[active_voice_index]->steps[active_step].freq = 0xFFFF;
-          track.pattern->voices[active_voice_index]->steps[active_step].waveform = 0xFF;
-          track.pattern->voices[active_voice_index]->steps[active_step].fx1 = 0xFF;
-          track.pattern->voices[active_voice_index]->steps[active_step].fx2 = 0xFF;
+          track.pattern->voices[active_voice_index]->steps[active_step].note = NOTE_OUT_OF_RANGE;
+          track.pattern->voices[active_voice_index]->steps[active_step].waveform = WAVEFORM_OUT_OF_RANGE;
+          track.pattern->voices[active_voice_index]->steps[active_step].fx1 = FX_OUT_OF_RANGE;
+          track.pattern->voices[active_voice_index]->steps[active_step].fx2 = FX_OUT_OF_RANGE;
+          // refresh_step(active_voice_index, active_step);
         } break;
       }
     }
@@ -563,10 +676,11 @@ int main(int argc, char** argv) {
 
   cursor(0);
   window(&winMain);
-  window(&winDebug);
+  // window(&winDebug);
 
-  window(&winHelp);
-  refresh_help();
+  // TODO: hide/show this on F1?
+  // window(&winHelp);
+  // refresh_help();
 
   uint8_t i = 0;
   for(i = 0; i < NUM_VOICES; i++) {
@@ -575,7 +689,7 @@ int main(int argc, char** argv) {
     refresh_track(i);
   }
 
-  window_puts(&winDebug, track.title);
+  // window_puts(&winDebug, track.title);
 
   state = T_NONE;
 
@@ -603,17 +717,23 @@ int main(int argc, char** argv) {
         if(frames > FRAMES_PER_QUARTER) frames = 0;
         // if(frames % FRAMES_PER_EIGTH == 0) { }
         if(frames % FRAMES_PER_SIXTEENTH == 0) {
-          uint8_t current_step = playing_step;
-          playing_step++;
-          if(playing_step > 15) playing_step = 0;
+          color_step(play_last_step, VOICE_WINDOW_FG);
+          play_last_step = play_next_step;
 
-          // refresh_steps(current_step); // reset previous step
-          // refresh_steps(playing_step); // update current step
-          color_step(current_step, TEXT_COLOR_LIGHT_GRAY);
-          color_step(playing_step, TEXT_COLOR_CYAN);
-          play_steps(playing_step);
+          color_step(play_next_step, VOICE_WINDOW_HL1);
+          play_steps(play_next_step);
+
+          play_next_step++;
+          if(play_next_step >= STEPS_PER_PATTERN) play_next_step = 0;
         }
         frames++;
+
+        // DEBUG
+        gotoxy(win_Pattern1.x + 2, win_Pattern1.y - 2);
+        sprintf(textbuff, "%3u %3u %3u %03u", frames, play_next_step, play_last_step, track.pattern->fx_counter);
+        textcolor(TEXT_COLOR_RED);
+        bgcolor(winMain.bg);
+        cputs(textbuff);
       } break;
       case T_NONE: {
         uint8_t cx = track.windows[active_voice_index]->x + 2;
