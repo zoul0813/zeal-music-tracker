@@ -14,7 +14,7 @@
 #include "windows.h"
 #include "tracker.h"
 
-static const char dummy[2];
+static const char dummy[1];
 static char textbuff[SCREEN_COL80_WIDTH];
 
 const __sfr __banked __at(0xF0) mmu_page0_ro;
@@ -292,6 +292,7 @@ void refresh_steps(uint8_t step_index) {
 }
 
 static inline void process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
+  // TSTATE_LOG(15);
   (void *)voice; // TODO: per channel effects
   // pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
 
@@ -351,6 +352,7 @@ static inline void process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
       zvb_sound_set_volume(VOL_100);
     } break;
   }
+  // TSTATE_LOG(15);
 }
 
 static inline void play_step(step_t *step, sound_voice_t voice) {
@@ -374,6 +376,7 @@ static inline void play_step(step_t *step, sound_voice_t voice) {
 }
 
 void play_steps(uint8_t step_index) {
+  // TSTATE_LOG(5);
   step_t *step1 = &track.pattern->voices[0]->steps[step_index];
   step_t *step2 = &track.pattern->voices[1]->steps[step_index];
   step_t *step3 = &track.pattern->voices[2]->steps[step_index];
@@ -384,6 +387,7 @@ void play_steps(uint8_t step_index) {
   play_step(step3, VOICE2);
   play_step(step4, VOICE3);
   MAP_TEXT();
+  // TSTATE_LOG(5);
 }
 
 void pattern_reset(void) {
@@ -496,25 +500,46 @@ zos_err_t file_save(const char *filename) {
     printf("failed to open file for savings, %d (%02x)", -file_dev, -file_dev);
     return -file_dev;
   } else {
+    zos_err_t err;
     uint16_t size = 0;
     char text[TRACKER_TITLE_LEN] = { 0x20 };
 
     size = 3;
-    write(file_dev, "ZMT", &size); // format header
+    err = write(file_dev, "ZMT", &size); // format header
+    if(err != ERR_SUCCESS) {
+      printf("error saving format header, %d (%02x)\n", err, err);
+      exit(err);
+    }
 
     size = sizeof(uint8_t);
     text[0] =  0;
-    write(file_dev, text, &size); // version header
+    err = write(file_dev, text, &size); // version header
+    if(err != ERR_SUCCESS) {
+      printf("error saving version header, %d (%02x)\n", err, err);
+      exit(err);
+    }
 
     size = TRACKER_TITLE_LEN;
     sprintf(text, "%-12s", track.title);
-    write(file_dev, text, &size); // track title
+    err = write(file_dev, text, &size); // track title
+    if(err != ERR_SUCCESS) {
+      printf("error saving title length, %d (%02x)\n", err, err);
+      exit(err);
+    }
 
     size = sizeof(uint8_t);
     text[0] = 1;
-    write(file_dev, text, &size); // pattern count
+    err = write(file_dev, text, &size); // pattern count
+    if(err != ERR_SUCCESS) {
+      printf("error saving pattern count, %d (%02x)\n", err, err);
+      exit(err);
+    }
 
-    pattern_save(track.pattern, file_dev);
+    err = pattern_save(track.pattern, file_dev);
+    if(err != ERR_SUCCESS) {
+      printf("error saving patterns, %d (%02x)\n", err, err);
+      exit(err);
+    }
 
     close(file_dev);
   }
@@ -734,9 +759,10 @@ int main(int argc, char** argv) {
     }
 
     gfx_wait_vblank(NULL);
-    TSTATE_LOG(1);
+    // TSTATE_LOG(1);
     switch(state) {
       case T_PLAY: {
+        // TSTATE_LOG(10);
         if(frames > FRAMES_PER_QUARTER) frames = 0;
         // if(frames % FRAMES_PER_EIGTH == 0) { }
         if(frames % FRAMES_PER_SIXTEENTH == 0) {
@@ -750,6 +776,7 @@ int main(int argc, char** argv) {
           if(play_next_step >= STEPS_PER_PATTERN) play_next_step = 0;
         }
         frames++;
+        // TSTATE_LOG(10);
 
         // // DEBUG
         // gotoxy(win_Pattern1.x + 2, win_Pattern1.y - 2);
@@ -772,7 +799,7 @@ int main(int argc, char** argv) {
         refresh_step(active_voice_index, active_step);
       } break;
     }
-    TSTATE_LOG(1);
+    // TSTATE_LOG(1);
     gfx_wait_end_vblank(NULL);
   }
 

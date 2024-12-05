@@ -144,4 +144,5 @@ typedef struct {
 zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev);
 zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev);
 void pattern_init(pattern_t *pattern);
+
 #endif
