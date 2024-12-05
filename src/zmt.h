@@ -24,5 +24,10 @@ typedef enum {
 #define FRAMES_PER_SIXTEENTH  (FRAMES_PER_QUARTER >> 2)
 #define FRAMES_PER_STEP       (FRAMES_PER_SIXTEENTH)
 
+#define CELL_OFFSET_FREQ   0
+#define CELL_OFFSET_WAVE   4
+#define CELL_OFFSET_F1     6
+#define CELL_OFFSET_F2     9
+
 #define ACTION_QUIT           1
 #endif

@@ -42,6 +42,11 @@ typedef enum {
   FX_NOTE_OFF    = 0x00,
   FX_NOTE_ON     = 0x01,
 
+  FX_VOICE_SQ    = 0x10,
+  FX_VOICE_TRI   = 0x11,
+  FX_VOICE_SAW   = 0x12,
+  FX_VOICE_NOISE = 0x13,
+
   // count down from N, reset when roll over
   FX_COUNT_0     = 0xC0,
   FX_COUNT_1     = 0xC1,
@@ -127,10 +132,10 @@ typedef struct {
   fx_attr_t fx2_attr;
 } step_t;
 
-#define FX_ATTRS    2
+#define FX_ATTRS    (sizeof(fx_attr_t) * 2)
 
 typedef struct {
-  uint8_t voice;
+  uint8_t index;
   step_t steps[STEPS_PER_PATTERN];
 } voice_t;
 

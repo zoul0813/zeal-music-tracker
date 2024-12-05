@@ -261,7 +261,7 @@ zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev) {
     voice_t* voice = pattern->voices[i];
     size = sizeof(uint8_t);
     // text[0] = voice->voice;
-    err = read(dev, &voice->voice, &size); // voice number
+    err = read(dev, &voice->index, &size); // voice number
     if(err != ERR_SUCCESS) {
       printf("error loading pattern voice, %d (%02x)\n", err, err);
       return err;
@@ -286,7 +286,7 @@ zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev) {
   for(uint8_t i = 0; i < NUM_VOICES; i++) {
     voice_t* voice = pattern->voices[i];
     size = sizeof(uint8_t);
-    text[0] = voice->voice;
+    text[0] = voice->index;
     err = write(dev, text, &size); // voice number
     if(err != ERR_SUCCESS) return err;
 
@@ -303,7 +303,7 @@ void pattern_init(pattern_t *pattern) {
   sprintf(pattern->title, "Pattern 1\x0");
   // pattern->fx_counter = 0xFF;
   for(uint8_t i = 0; i < NUM_VOICES; i++) {
-    pattern->voices[i]->voice = i;
+    pattern->voices[i]->index = i;
     for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
       pattern->voices[i]->steps[j].note = NOTE_OUT_OF_RANGE;
       pattern->voices[i]->steps[j].waveform = WAVEFORM_OUT_OF_RANGE;
