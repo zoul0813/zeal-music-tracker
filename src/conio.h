@@ -47,6 +47,19 @@ void clr_color(unsigned char c);
 /* Return true if there's a key waiting, return false if not */
 unsigned char kbhit(void);
 
+static inline void _gotox(unsigned char x) {
+  zvb_peri_text_curs_x = x;
+}
+
+static inline void _gotoy(unsigned char y) {
+  zvb_peri_text_curs_y = y;
+}
+
+static inline void _gotoxy(unsigned char x, unsigned char y) {
+  _gotox(x);
+  _gotoy(y);
+}
+
 /* Set the cursor to the specified X position, leave the Y position untouched */
 void gotox(unsigned char x);
 

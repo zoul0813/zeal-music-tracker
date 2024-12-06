@@ -57,9 +57,9 @@ BIN=zmt.bin
 # ZVB_LDFLAGS=-k $(ZVB_SDK_PATH)/lib/ -l zvb_gfx
 
 # ZGDK has sound enabled by default, uncomment this to disable sound and reduce your binary size
-ENABLE_GFX=1
-ENABLE_SOUND=1
-# ENABLE_CRC32=1
+ENABLE_GFX=0
+ENABLE_SOUND=0
+ENABLE_CRC32=0
 # ENABLE_CONIO=1
 # ENABLE_WINDOWS=1
 

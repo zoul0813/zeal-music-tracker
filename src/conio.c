@@ -74,8 +74,7 @@ void clreol (void) {
     zvb_peri_text_print_char = ' ';
   }
 
-  zvb_peri_text_curs_x = 0;
-  zvb_peri_text_curs_y = y + 1;
+  _gotoxy(0, y + 1);
 }
 
 /* Clear the screen with a specified bgcolor */
@@ -83,7 +82,7 @@ void clr_color(unsigned char c) {
   bgcolor(c);
   unsigned char width, height;
   screensize(&width, &height);
-  gotoxy(0,0);
+  _gotoxy(0,0);
   for(unsigned char y = 0; y < height; y++) {
     zvb_peri_text_curs_x = 0;
     zvb_peri_text_curs_y = y;
@@ -95,18 +94,17 @@ void clr_color(unsigned char c) {
 
 /* Set the cursor to the specified X position, leave the Y position untouched */
 void gotox (unsigned char x) {
-  zvb_peri_text_curs_x = x;
+  _gotox(x);
 }
 
 /* Set the cursor to the specified Y position, leave the X position untouched */
 void gotoy (unsigned char y) {
-  zvb_peri_text_curs_y = y;
+  _gotoy(y);
 }
 
 /* Set the cursor to the specified position */
 void gotoxy (unsigned char x, unsigned char y) {
-  zvb_peri_text_curs_x = x;
-  zvb_peri_text_curs_y = y;
+  _gotoxy(x,y);
 }
 
 /* Return the X position of the cursor */
@@ -129,11 +127,11 @@ void cputc (char c) {
 
 /* Same as "gotoxy (x, y); cputc (c); */
 void cputcxy (unsigned char x, unsigned char y, char c) {
-  gotoxy(x, y);
-  // cputc(c);
+  _gotoxy(x,y);
   switch(c) {
     case CH_NEWLINE:
-      gotoy(++y);
+      // gotoy(++y);
+      _gotoy(++y);
       break;
     default:
       zvb_peri_text_print_char = c;
@@ -151,7 +149,7 @@ void cputs (const char* s) {
 
 /* Same as "gotoxy (x, y); puts (s); */
 void cputsxy (unsigned char x, unsigned char y, const char* s) {
-  gotoxy(x,y);
+  _gotoxy(x,y);
   cputs(s);
 }
 
@@ -266,7 +264,7 @@ void chline (unsigned char length) {
 
 /* Same as "gotoxy (x, y); chline (length);" */
 void chlinexy (unsigned char x, unsigned char y, unsigned char length) {
-  gotoxy(x,y);
+  _gotoxy(x,y);
   chline(length);
 }
 
@@ -281,7 +279,7 @@ void cvline (unsigned char length) {
 
 /* Same as "gotoxy (x, y); cvline (length);" */
 void cvlinexy (unsigned char x, unsigned char y, unsigned char length) {
-  gotoxy(x,y);
+  _gotoxy(x,y);
   cvline(length);
 }
 
@@ -294,7 +292,7 @@ void cclear (unsigned char length) {
 
 /* Same as "gotoxy (x, y); cclear (length);" */
 void cclearxy (unsigned char x, unsigned char y, unsigned char length) {
-  gotoxy(x,y);
+  _gotoxy(x,y);
   cclear(length);
 }
 

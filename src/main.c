@@ -6,17 +6,19 @@
 #include <zos_errors.h>
 #include <zos_keyboard.h>
 #include <zos_video.h>
-#include <zvb_gfx.h>
+#include <zvb_hardware.h>
 #include <zvb_sound.h>
 
 #include "zmt.h"
 #include "conio.h"
 #include "windows.h"
 #include "tracker.h"
+#include "sound.h"
 
 static const char dummy[1];
 static char textbuff[SCREEN_COL80_WIDTH];
 
+__sfr __banked __at(0x9d) vid_ctrl_status;
 const __sfr __banked __at(0xF0) mmu_page0_ro;
 __sfr __at(0xF0) mmu_page0;
 uint8_t *text_layer1 = (uint8_t *) 0x1000;
@@ -24,23 +26,27 @@ uint8_t *text_layer1 = (uint8_t *) 0x1000;
 typedef struct {
   char title[TRACKER_TITLE_LEN + 1];
   window_t* windows[NUM_VOICES];
-  pattern_t* pattern;
+  uint8_t pattern_count;
+  pattern_t* patterns[NUM_PATTERNS];
 } track_t;
 
-voice_t voice1 = { .index = 0 };
-voice_t voice2 = { .index = 1 };
-voice_t voice3 = { .index = 2 };
-voice_t voice4 = { .index = 3 };
+// voice_t voice1 = { .index = 0 };
+// voice_t voice2 = { .index = 1 };
+// voice_t voice3 = { .index = 2 };
+// voice_t voice4 = { .index = 3 };
 
-pattern_t pattern = {
-  .title = "Pattern 1",
-  .voices = {
-    &voice1,
-    &voice2,
-    &voice3,
-    &voice4,
-  },
-};
+pattern_t pattern0;
+pattern_t pattern1;
+pattern_t pattern2;
+pattern_t pattern3;
+pattern_t pattern4;
+pattern_t pattern5;
+pattern_t pattern6;
+pattern_t pattern7;
+
+#define PATTERN_WIN_X     5U
+#define PATTERN_WIN_Y     3U
+#define PATTERN_WIN_WIDTH 15U
 
 window_t winMain = {
   .x = 0,
@@ -54,8 +60,8 @@ window_t winMain = {
 };
 
 window_t winHelp = {
-  .x = 40,
-  .y = 2,
+  .x = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 0),
+  .y = PATTERN_WIN_Y,
   .w = 17 + 2 + 17, // wtf?
   .h = 15,
   .flags = WIN_BORDER,
@@ -63,10 +69,6 @@ window_t winHelp = {
   .bg = TEXT_COLOR_BROWN,
   .title = "Controls",
 };
-
-#define PATTERN_WIN_X     5U
-#define PATTERN_WIN_Y     3U
-#define PATTERN_WIN_WIDTH 15U
 
 window_t win_Pattern1 = {
   .x = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 0),
@@ -120,10 +122,21 @@ track_t track = {
     &win_Pattern3,
     &win_Pattern4,
   },
-  .pattern = &pattern,
+  .patterns = {
+    &pattern0,
+    &pattern1,
+    &pattern2,
+    &pattern3,
+    &pattern4,
+    &pattern5,
+    &pattern6,
+    &pattern7,
+  }
 };
 
 // track_t* active_track = NULL;
+pattern_t *active_pattern = 0;
+uint8_t active_pattern_index = 0;
 voice_t* active_voice = NULL;
 step_t* last_step_edit = NULL;
 uint8_t active_voice_index = 0;
@@ -132,6 +145,7 @@ uint8_t active_step = 0;
 uint8_t play_next_step = 0;
 uint8_t play_last_step = 0;
 uint16_t frames = 0;
+unsigned char active_dialog = 0x00;
 
 uint8_t cursor_x = 0;
 uint8_t cursor_x_offset = 0;
@@ -141,11 +155,19 @@ playback_state_t state = T_NONE;
 
 #define ACTIVATE_VOICE(index) \
   active_voice_index = index; \
-  active_voice = track.pattern->voices[index]; \
+  active_voice = &active_pattern->voices[index]; \
   cursor_x = track.windows[active_voice_index]->x + 2;
 
 #define MAP_SOUND()   zvb_map_peripheral(ZVB_PERI_SOUND_IDX)
 #define MAP_TEXT()    zvb_map_peripheral(ZVB_PERI_TEXT_IDX)
+
+static inline void wait_vblank(void) {
+  while((vid_ctrl_status & 2) == 0) { }
+}
+
+static inline void wait_end_vblank(void) {
+  while(vid_ctrl_status & 2) { }
+}
 
 void update_cell(voice_t *voice, int8_t amount) {
   step_t *step = &voice->steps[active_step];
@@ -218,7 +240,7 @@ void color_step(uint8_t step_index, uint8_t color) {
 
 void refresh_step(uint8_t voice_index, uint8_t step_index) {
   window_t *w = track.windows[voice_index];
-  voice_t *voice = track.pattern->voices[voice_index];
+  voice_t *voice = &active_pattern->voices[voice_index];
   step_t *step = &voice->steps[step_index];
 
   window_gotoxy(w, 0, step_index + 1);
@@ -286,11 +308,11 @@ void refresh_steps(uint8_t step_index) {
 
 static inline void process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
   (void *)voice; // TODO: per channel effects
-  // pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
+  // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
 
   if((fx >= FX_GOTO_0) && (fx <= FX_GOTO_31)) {
     play_next_step = (fx - FX_GOTO_0) - 1;
-    frames = play_next_step % 16; // TODO: yeah?
+    frames = (play_next_step % 16) - 1; // TODO: yeah?
     return;
   }
 
@@ -302,7 +324,7 @@ static inline void process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
     case FX_VOICE_TRI:  // fall thru
     case FX_VOICE_SAW:  // fall thru
     case FX_VOICE_NOISE: {
-      zvb_peri_sound_wave = (fx & 03);
+      SOUND_WAVE(fx);
     } break;
 
     case FX_COUNT_0: // fall thru
@@ -320,58 +342,56 @@ static inline void process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
 
     // TODO: per channel volume control?
     case FX_VOL_00_0: {
-      zvb_peri_sound_master_vol = VOL_0;
+      SOUND_VOL(VOL_0);
     } break;
     case FX_VOL_12_5: {
       // TODO: 8 step volume control
-      zvb_peri_sound_master_vol = VOL_0;
+      SOUND_VOL(VOL_0);
     } break;
     case FX_VOL_25_0: {
-      zvb_peri_sound_master_vol = VOL_25;
+      SOUND_VOL(VOL_25);
     } break;
     case FX_VOL_37_5: {
       // TODO: 8 step volume control
-      zvb_peri_sound_master_vol = VOL_25;
+      SOUND_VOL(VOL_25);
     } break;
     case FX_VOL_50_0: {
-      zvb_peri_sound_master_vol = VOL_50;
+      SOUND_VOL(VOL_50);
     } break;
     case FX_VOL_62_5: {
       // TODO: 8 step volume control
-      zvb_peri_sound_master_vol = VOL_50;
+      SOUND_VOL(VOL_50);
     } break;
     case FX_VOL_75_0: {
-      zvb_peri_sound_master_vol = VOL_75;
+      SOUND_VOL(VOL_75);
     } break;
     case FX_VOL_87_5: {
       // TODO: 8 step volume control
-      zvb_peri_sound_master_vol = VOL_75;
+      SOUND_VOL(VOL_75);
     } break;
     case FX_VOL_100: {
-      zvb_peri_sound_master_vol = VOL_100;
+      SOUND_VOL(VOL_100);
     } break;
   }
 }
 
 static inline void play_step(step_t *step, sound_voice_t voice) {
-  // pattern_t *pattern = track.pattern; // TODO: gonna have more than one pattern soon, lol
+  // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
 
   // FX1 is pre-processed
   if(step->fx1 != FX_OUT_OF_RANGE) process_fx(step, step->fx1, voice);
 
-  zvb_peri_sound_select = voice;
+  SOUND_SELECT(voice);
 
   if(step->note != NOTE_OUT_OF_RANGE) {
     note_t note = NOTES[step->note];
-    // zvb_sound_set_voices(voice, note, waveform);
-    zvb_peri_sound_freq_low  = note & 0xff;
-    zvb_peri_sound_freq_high = (note >> 8) & 0xff;
+    SOUND_DIV(note);
   }
 
   if(step->waveform != WAVEFORM_OUT_OF_RANGE) {
     waveform_t waveform = step->waveform;
     if(waveform > 0x03) waveform = WAV_SQUARE;
-    zvb_peri_sound_wave = waveform &= 03;
+    SOUND_WAVE(waveform);
   }
 
   // only process fx2 if fx1 is not counting, or it has counted down
@@ -381,10 +401,10 @@ static inline void play_step(step_t *step, sound_voice_t voice) {
 }
 
 void play_steps(uint8_t step_index) {
-  step_t *step1 = &track.pattern->voices[0]->steps[step_index];
-  step_t *step2 = &track.pattern->voices[1]->steps[step_index];
-  step_t *step3 = &track.pattern->voices[2]->steps[step_index];
-  step_t *step4 = &track.pattern->voices[3]->steps[step_index];
+  step_t *step1 = &active_pattern->voices[0].steps[step_index];
+  step_t *step2 = &active_pattern->voices[1].steps[step_index];
+  step_t *step3 = &active_pattern->voices[2].steps[step_index];
+  step_t *step4 = &active_pattern->voices[3].steps[step_index];
   MAP_SOUND();
   play_step(step1, VOICE0);
   play_step(step2, VOICE1);
@@ -398,15 +418,15 @@ void pattern_reset(void) {
   play_next_step = 0;
   for(uint8_t s = 0; s < STEPS_PER_PATTERN; s++) {
     for(uint8_t v = 0; v < NUM_VOICES; v++) {
-      track.pattern->voices[v]->steps[s].fx1_attr = 0x00;
-      track.pattern->voices[v]->steps[s].fx2_attr = 0x00;
+      active_pattern->voices[v].steps[s].fx1_attr = 0x00;
+      active_pattern->voices[v].steps[s].fx2_attr = 0x00;
     }
   }
 }
 
 void refresh_track(uint8_t voice_index) {
   // track_t *track = &tracks[track_index];
-  voice_t *voice = track.pattern->voices[voice_index];
+  voice_t *voice = &active_pattern->voices[voice_index];
   window_t *window = track.windows[voice_index];
   uint8_t i;
   window_gotoxy(window, 0, 0);
@@ -430,15 +450,29 @@ void refresh_help(void) {
   window_puts(&winHelp, "     Space: Play/Stop\n");
 }
 
+void refresh(void) {
+  active_step = 0;
+  window_gotoxy(&winMain, 0, PATTERN_WIN_Y + 1);
+  sprintf(textbuff, " P%.1u", active_pattern_index);
+  window_puts(&winMain, textbuff);
+  for(uint8_t i = 0; i < NUM_VOICES; i++) {
+    window_t *w = track.windows[i];
+    window(w);
+    refresh_track(i);
+  }
+  color_step(active_step, VOICE_WINDOW_Hl2);
+}
+
 zos_err_t file_load(const char *filename) {
   zos_dev_t file_dev = open(filename, O_RDONLY);
   if(file_dev < 0) {
     printf("failed to open file, %d (%02x)\n", -file_dev, -file_dev);
-    pattern_init(track.pattern);
     return -file_dev;
   } else {
     zos_err_t err;
     uint16_t size = 0;
+
+    printf("Loading '%s' ...\n", filename);
 
     size = 3;
     err = read(file_dev, textbuff, &size); // format header
@@ -467,18 +501,23 @@ zos_err_t file_load(const char *filename) {
     printf("Track: %12s (read: %d)\n", track.title, size);
 
     size = sizeof(uint8_t);
-    err = read(file_dev, textbuff, &size); // pattern count
+    err = read(file_dev, &track.pattern_count, &size); // pattern count
     if(err != ERR_SUCCESS) {
       printf("error reading pattern count, %d (%02x)\n", err, err);
       return err;
     }
-    printf("Patterns: %d\n", textbuff[0]);
+    printf("Patterns: %d\n", track.pattern_count);
 
-    err = pattern_load(track.pattern, file_dev);
-    if(err != ERR_SUCCESS) {
-      printf("error loading patterns, %d (%02x)\n", err, err);
-      return err;
+    for(uint8_t p = 0; p < track.pattern_count; p++) {
+      printf("Loading pattern %d\n", p);
+      err = pattern_load(track.patterns[p], file_dev);
+      if(err != ERR_SUCCESS) {
+        printf("error loading patterns, %d (%02x)\n", err, err);
+        return err;
+      }
     }
+
+    printf("File loaded.\n\n");
 
     close(file_dev);
   }
@@ -491,6 +530,7 @@ zos_err_t file_save(const char *filename) {
     printf("failed to open file for savings, %d (%02x)", -file_dev, -file_dev);
     return -file_dev;
   } else {
+    printf("Saving '%s' ...\n", filename);
     zos_err_t err;
     uint16_t size = 0;
 
@@ -518,19 +558,21 @@ zos_err_t file_save(const char *filename) {
     }
 
     size = sizeof(uint8_t);
-    textbuff[0] = 1;
-    err = write(file_dev, textbuff, &size); // pattern count
+    err = write(file_dev, &track.pattern_count, &size); // pattern count
     if(err != ERR_SUCCESS) {
       printf("error saving pattern count, %d (%02x)\n", err, err);
       exit(err);
     }
 
-    err = pattern_save(track.pattern, file_dev);
-    if(err != ERR_SUCCESS) {
+    for(uint8_t p = 0; p < track.pattern_count; p++) {
+      printf("Writing pattern %d\n", p);
+      err = pattern_save(track.patterns[p], file_dev);
+      if(err != ERR_SUCCESS) {
       printf("error saving patterns, %d (%02x)\n", err, err);
       exit(err);
     }
-
+    }
+    printf("File saved.\n");
     close(file_dev);
   }
   return ERR_SUCCESS;
@@ -571,17 +613,18 @@ uint8_t input(void) {
           pattern_reset();
           cursor(0);
           /* show the "play" icon */
-          gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
+          _gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
           textcolor(TEXT_COLOR_RED);
           bgcolor(winMain.bg);
           cputc(CH_PLAY);
         } else {
           state = T_NONE;
           // stop sound
-          zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
+          MAP_SOUND();
+          SOUND_OFF();
           MAP_TEXT();
           /* hide the "play" icon */
-          gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
+          _gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
           textcolor(winMain.fg);
           bgcolor(winMain.bg);
           cputc(' '); // clear the "> nnn" from the frame counter
@@ -593,7 +636,55 @@ uint8_t input(void) {
 
     if(state == T_NONE) {
       switch(c) {
-        // case KB_ESC: {
+        /* Dialogs */
+        case KB_KEY_H: {
+          cursor(0);
+          if(active_dialog == 0x00) {
+            active_dialog = 'h';
+            window(&winHelp);
+          } else {
+            active_dialog = 0x00;
+            refresh_track(0);
+            refresh_track(1);
+            refresh_track(2);
+            refresh_track(3);
+          }
+          cursor(1);
+        } break;
+
+        /* Patterns*/
+        case KB_KEY_N: {
+          if(track.pattern_count < NUM_PATTERNS) {
+            track.pattern_count++;
+            active_pattern_index = track.pattern_count - 1;
+          }
+          active_pattern = track.patterns[active_pattern_index];
+          pattern_init(active_pattern);
+          ACTIVATE_VOICE(active_voice_index);
+          refresh();
+        } break;
+        case KB_KEY_LEFT_BRACKET: {
+          if(active_pattern_index > 0) {
+            active_pattern_index--;
+          } else {
+            active_pattern_index = track.pattern_count - 1;
+          }
+          active_pattern = track.patterns[active_pattern_index];
+          ACTIVATE_VOICE(active_voice_index);
+          refresh();
+        } break;
+        case KB_KEY_RIGHT_BRACKET: {
+          if(active_pattern_index < (track.pattern_count - 1)) {
+            active_pattern_index++;
+          } else {
+            active_pattern_index = 0;
+          }
+          active_pattern = track.patterns[active_pattern_index];
+          ACTIVATE_VOICE(active_voice_index);
+          refresh();
+        } break;
+
+        /* Voices */
         //   return ACTION_QUIT;
         // } break;
         case KB_KEY_1: {
@@ -609,6 +700,7 @@ uint8_t input(void) {
           ACTIVATE_VOICE(3);
         } break;
 
+        /* Steps */
         case KB_DOWN_ARROW: {
           uint8_t old_step = active_step;
           active_step++;
@@ -640,6 +732,7 @@ uint8_t input(void) {
           cursor_y = (PATTERN_WIN_Y + 2) + active_step;
         } break;
 
+        /* Cells */
         case KB_KEY_TAB: {
           active_cell++;
           if(active_cell > 3) active_cell = 0;
@@ -651,40 +744,41 @@ uint8_t input(void) {
           }
         } break;
 
+        /* Editing */
         case KB_RIGHT_ARROW: {
           update_cell(active_voice, 1);
-          last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+          last_step_edit = &active_pattern->voices[active_voice_index].steps[active_step];
           // refresh_step(active_voice_index, active_step);
         } break;
         case KB_LEFT_ARROW: {
           update_cell(active_voice, -1);
-          last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+          last_step_edit = &active_pattern->voices[active_voice_index].steps[active_step];
           // refresh_step(active_voice_index, active_step);
         } break;
         case KB_PG_UP: {
           update_cell(active_voice, 2);
-          last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+          last_step_edit = &active_pattern->voices[active_voice_index].steps[active_step];
           // refresh_step(active_voice_index, active_step);
         } break;
         case KB_PG_DOWN: {
           update_cell(active_voice, -2);
-          last_step_edit = &track.pattern->voices[active_voice_index]->steps[active_step];
+          last_step_edit = &active_pattern->voices[active_voice_index].steps[active_step];
           // refresh_step(active_voice_index, active_step);
         } break;
         case KB_INSERT: {
           // copy last_step_edit
-          track.pattern->voices[active_voice_index]->steps[active_step].note = last_step_edit->note;
-          track.pattern->voices[active_voice_index]->steps[active_step].waveform = last_step_edit->waveform;
-          track.pattern->voices[active_voice_index]->steps[active_step].fx1 = last_step_edit->fx1;
-          track.pattern->voices[active_voice_index]->steps[active_step].fx2 = last_step_edit->fx2;
+          active_pattern->voices[active_voice_index].steps[active_step].note = last_step_edit->note;
+          active_pattern->voices[active_voice_index].steps[active_step].waveform = last_step_edit->waveform;
+          active_pattern->voices[active_voice_index].steps[active_step].fx1 = last_step_edit->fx1;
+          active_pattern->voices[active_voice_index].steps[active_step].fx2 = last_step_edit->fx2;
           // refresh_step(active_voice_index, active_step);
         } break;
         case KB_DELETE: {
           // delete current step
-          track.pattern->voices[active_voice_index]->steps[active_step].note = NOTE_OUT_OF_RANGE;
-          track.pattern->voices[active_voice_index]->steps[active_step].waveform = WAVEFORM_OUT_OF_RANGE;
-          track.pattern->voices[active_voice_index]->steps[active_step].fx1 = FX_OUT_OF_RANGE;
-          track.pattern->voices[active_voice_index]->steps[active_step].fx2 = FX_OUT_OF_RANGE;
+          active_pattern->voices[active_voice_index].steps[active_step].note = NOTE_OUT_OF_RANGE;
+          active_pattern->voices[active_voice_index].steps[active_step].waveform = WAVEFORM_OUT_OF_RANGE;
+          active_pattern->voices[active_voice_index].steps[active_step].fx1 = FX_OUT_OF_RANGE;
+          active_pattern->voices[active_voice_index].steps[active_step].fx2 = FX_OUT_OF_RANGE;
           // refresh_step(active_voice_index, active_step);
         } break;
       }
@@ -703,6 +797,8 @@ int main(int argc, char** argv) {
     exit(err);
   }
 
+  active_pattern = track.patterns[0];
+  active_pattern_index = 0;
   if(argc == 1) {
     err = file_load(argv[0]);
     if (err != ERR_SUCCESS) {
@@ -710,8 +806,12 @@ int main(int argc, char** argv) {
       exit(err);
     }
   } else {
-    pattern_init(track.pattern);
+    track.pattern_count = 1;
+    pattern_init(active_pattern);
   }
+
+  // file_save("rle.zmt");
+  // exit(1);
 
   cursor(0);
   window(&winMain);
@@ -729,28 +829,21 @@ int main(int argc, char** argv) {
   // window(&winHelp);
   // refresh_help();
 
-  for(i = 0; i < NUM_VOICES; i++) {
-    window_t *w = track.windows[i];
-    window(w);
-    refresh_track(i);
-  }
-  color_step(active_step, VOICE_WINDOW_Hl2);
+  refresh();
 
   state = T_NONE;
 
-  zvb_sound_reset();
-  zvb_sound_set_volume(VOL_75);
-  zvb_sound_set_hold(VOICEALL, 0);
-  zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
-
+  MAP_SOUND();
+  SOUND_RESET(VOL_75);
   MAP_TEXT();
 
   ACTIVATE_VOICE(0);
-  last_step_edit = &track.pattern->voices[0]->steps[active_step];
+  last_step_edit = &active_pattern->voices[0].steps[active_step];
   cursor(1);
 
   while(1) {
-    gfx_wait_vblank(NULL);
+    wait_vblank();
+    TSTATE_LOG(1);
     uint8_t action = input();
     switch(action) {
       case ACTION_QUIT:
@@ -773,21 +866,22 @@ int main(int argc, char** argv) {
         frames++;
       } break;
       case T_NONE: {
-        sprintf(textbuff, "%2u %2u %2u", cursor_x, cursor_x_offset, cursor_y);
-        window_gotoxy(&winMain, 0, 0);
-        window_puts(&winMain, textbuff);
+        // DEBUG
+        // sprintf(textbuff, "%2u %2u %2u", cursor_x, cursor_x_offset, cursor_y);
+        // window_gotoxy(&winMain, 0, 0);
+        // window_puts(&winMain, textbuff);
 
         refresh_step(active_voice_index, active_step);
-        gotoxy(cursor_x + cursor_x_offset, cursor_y);
+        _gotoxy(cursor_x + cursor_x_offset, cursor_y);
       } break;
     }
-    gfx_wait_end_vblank(NULL);
+    TSTATE_LOG(1);
+    wait_end_vblank();
   }
 
 __exit:
-  zvb_sound_set_voices(VOICEALL, 0, WAV_SQUARE);
-  zvb_sound_set_hold(VOICEALL, 1);
-  zvb_sound_set_volume(VOL_0);
+  MAP_SOUND();
+  SOUND_RESET(VOL_0);
   MAP_TEXT();
 
   // reset the screen
@@ -805,7 +899,7 @@ __exit:
 
   uint16_t size = 0;
   do {
-    printf("Enter filename to save recording, press enter to quit without saving %d:\n", size);
+    printf("Enter filename to save recording, press enter to quit without saving:\n");
     size = sizeof(textbuff);
     err = read(DEV_STDIN, textbuff, &size);
     if(err != ERR_SUCCESS) {

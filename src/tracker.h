@@ -27,6 +27,7 @@
 
 #define STEPS_PER_PATTERN     32U
 #define NUM_VOICES            4U
+#define NUM_PATTERNS          8U
 #define TRACKER_TITLE_LEN     12U
 
 #define CH_PLAY   242U
@@ -109,6 +110,7 @@ typedef uint8_t fx_attr_t;
 
 #define NUM_NOTES               (12 * 9 + 1)
 typedef uint16_t note_t;
+typedef uint8_t note_index_t;
 typedef char note_name_t[3];
 extern note_t NOTES[NUM_NOTES]; // 108 notes
 extern note_name_t NOTE_NAMES[NUM_NOTES]; // 108 notes
@@ -122,7 +124,8 @@ typedef uint8_t waveform_t;
 
 typedef struct {
   // uint16_t freq;
-  note_t note;
+  note_index_t note; // note index
+  // note_t note; // note index - should be 8-bit, not 16-bit!!!
   waveform_t waveform;
   fx_t fx1;
   fx_t fx2;
@@ -132,7 +135,13 @@ typedef struct {
   fx_attr_t fx2_attr;
 } step_t;
 
-#define FX_ATTRS    (sizeof(fx_attr_t) * 2)
+#define FX_ATTRS      2
+#define FX_ATTR_BYTES (sizeof(fx_attr_t) * FX_ATTRS)
+#define STEP_BYTES    (sizeof(step_t) - FX_ATTRS)
+
+#define EMPTY_PATTERN 0xFD
+#define EMPTY_VOICE   0xFE
+#define EMPTY_STEP    0xFF
 
 typedef struct {
   uint8_t index;
@@ -140,14 +149,16 @@ typedef struct {
 } voice_t;
 
 typedef struct {
-  char title[TRACKER_TITLE_LEN];
-  voice_t* voices[NUM_VOICES];
+  // char title[TRACKER_TITLE_LEN];
+  voice_t voices[NUM_VOICES];
   // TODO: add sample voice?
 } pattern_t;
 
 
 zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev);
 zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev);
+void step_init(step_t *step, uint8_t index);
+void voice_init(voice_t *voice, uint8_t index);
 void pattern_init(pattern_t *pattern);
 
 #endif

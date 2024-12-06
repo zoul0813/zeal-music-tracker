@@ -3,6 +3,11 @@
 #include <zvb_sound.h>
 #include "tracker.h"
 
+#define STEP_IS_EMPTY(step) ((step->note == NOTE_OUT_OF_RANGE) \
+                            && (step->waveform == WAVEFORM_OUT_OF_RANGE) \
+                            && (step->fx1 == FX_OUT_OF_RANGE) \
+                            && (step->fx2 == FX_OUT_OF_RANGE))
+
 note_t NOTES[] = {
   /* Octave 0 */
   SOUND_FREQ_TO_DIV(16), // C0
@@ -256,24 +261,44 @@ note_name_t NOTE_NAMES[] = {
 
 zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev) {
   uint16_t size = 0;
+  int32_t seek_to = -1;
   zos_err_t err = ERR_SUCCESS;
-  for(uint8_t i = 0; i < NUM_VOICES; i++) {
-    voice_t* voice = pattern->voices[i];
+  uint8_t i, j;
+  unsigned char c; // used to read a single char
+
+  for(i = 0; i < NUM_VOICES; i++) {
+    voice_t* voice = &pattern->voices[i];
     size = sizeof(uint8_t);
-    // text[0] = voice->voice;
     err = read(dev, &voice->index, &size); // voice number
     if(err != ERR_SUCCESS) {
       printf("error loading pattern voice, %d (%02x)\n", err, err);
       return err;
     }
 
-    for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
-      size = sizeof(step_t) - (sizeof(fx_attr_t) * FX_ATTRS);
-      err = read(dev, &voice->steps[j], &size); // step
-      if(err != ERR_SUCCESS) {
-        printf("error loading pattern steps, %d (%02x) - read %d, expected %d\n", err, err, size, sizeof(step_t));
-        return err;
+    size = sizeof(unsigned char);
+    err = read(dev, &c, &size);
+    if(c != EMPTY_VOICE) {
+      // seek backwards
+      seek_to = -1;
+      seek(dev, &seek_to, SEEK_CUR);
+      for(j = 0; j < STEPS_PER_PATTERN; j++) {
+        step_t *step = &voice->steps[j];
+        size = sizeof(unsigned char);
+        err = read(dev, &c, &size);
+        if(c != EMPTY_STEP) {
+          step->note = c;
+          size = sizeof(step_t) - sizeof(note_index_t) - FX_ATTR_BYTES;
+          err = read(dev, &step->waveform, &size); // step
+          if(err != ERR_SUCCESS) {
+            printf("error loading pattern steps, %d (%02x) - read %d, expected %d\n", err, err, size, sizeof(step_t));
+            return err;
+          }
+        } else { // empty step
+          step_init(step, j);
+        }
       }
+    } else { // empty pattern
+      voice_init(voice, i);
     }
   }
   return err;
@@ -282,35 +307,80 @@ zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev) {
 zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev) {
   uint16_t size = 0;
   zos_err_t err = ERR_SUCCESS;
-  char text[5];
-  for(uint8_t i = 0; i < NUM_VOICES; i++) {
-    voice_t* voice = pattern->voices[i];
+  uint8_t i = 0, j = 0;
+  unsigned char empty;
+  for(i = 0; i < NUM_VOICES; i++) {
+    empty = EMPTY_VOICE;
+    voice_t* voice = &pattern->voices[i];
     size = sizeof(uint8_t);
-    text[0] = voice->index;
-    err = write(dev, text, &size); // voice number
+    err = write(dev, &voice->index, &size); // voice number
     if(err != ERR_SUCCESS) return err;
 
-    for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
-      size = sizeof(step_t) - (sizeof(fx_attr_t) * FX_ATTRS);
-      err = write(dev, &voice->steps[j], &size); // step
+    // Uncompressed
+    // for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
+    //   size = sizeof(step_t) - (sizeof(fx_attr_t) * FX_ATTRS);
+    //   err = write(dev, &voice->steps[j], &size); // step
+    //   if(err != ERR_SUCCESS) return err;
+    // }
+
+    step_t *step;
+    for(j = 0; j < STEPS_PER_PATTERN; j++) {
+      step = &voice->steps[j];
+      if(!STEP_IS_EMPTY(step)) break;
+    }
+
+    if(j >= STEPS_PER_PATTERN) {
+      // empty pattern
+      size = sizeof(empty);
+      err = write(dev, &empty, &size); // step
+      continue;
+    }
+
+    // TODO: count number of future empty steps, then store the step byte as 0x80+N
+    // ie; if the next 3 steps are empty, the next step byte is 0x83 ... which expands into 3 empty steps
+
+    // Compressed
+    empty = EMPTY_STEP;
+    for(j = 0; j < STEPS_PER_PATTERN; j++) {
+      step = &voice->steps[j];
+      if(STEP_IS_EMPTY(step)) {
+        size = sizeof(empty);
+        err = write(dev, &empty, &size); // step
+      } else {
+        size = sizeof(step_t) - (sizeof(fx_attr_t) * FX_ATTRS);
+        err = write(dev, &voice->steps[j], &size); // step
+      }
       if(err != ERR_SUCCESS) return err;
     }
   }
   return err;
 }
 
+void step_init(step_t *step, uint8_t index) {
+  (void *)index; // unreferenced
+  step->note = NOTE_OUT_OF_RANGE;
+  step->waveform = WAVEFORM_OUT_OF_RANGE;
+  step->fx1 = FX_OUT_OF_RANGE;
+  step->fx2 = FX_OUT_OF_RANGE;
+
+  // we don't talk about bruno
+  step->fx1_attr = 0x00;
+  step->fx2_attr = 0x00;
+}
+
+void voice_init(voice_t *voice, uint8_t index) {
+  uint8_t i;
+  voice->index = index;
+  for(i = 0; i < STEPS_PER_PATTERN; i++) {
+    step_t *step = &voice->steps[i];
+    step_init(step, i);
+  }
+}
+
 void pattern_init(pattern_t *pattern) {
-  sprintf(pattern->title, "Pattern 1\x0");
-  // pattern->fx_counter = 0xFF;
-  for(uint8_t i = 0; i < NUM_VOICES; i++) {
-    pattern->voices[i]->index = i;
-    for(uint8_t j = 0; j < STEPS_PER_PATTERN; j++) {
-      pattern->voices[i]->steps[j].note = NOTE_OUT_OF_RANGE;
-      pattern->voices[i]->steps[j].waveform = WAVEFORM_OUT_OF_RANGE;
-      pattern->voices[i]->steps[j].fx1 = FX_OUT_OF_RANGE;
-      pattern->voices[i]->steps[j].fx2 = FX_OUT_OF_RANGE;
-      pattern->voices[i]->steps[j].fx1_attr = 0x00;
-      pattern->voices[i]->steps[j].fx2_attr = 0x00;
-    }
+  uint8_t i;
+  for(i = 0; i < NUM_VOICES; i++) {
+    voice_t *voice = &pattern->voices[i];
+    voice_init(voice, i);
   }
 }
