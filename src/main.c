@@ -13,7 +13,6 @@
 #include "conio.h"
 #include "windows.h"
 #include "tracker.h"
-#include "sound.h"
 
 static const char dummy[1];
 static char textbuff[SCREEN_COL80_WIDTH];
@@ -22,18 +21,6 @@ __sfr __banked __at(0x9d) vid_ctrl_status;
 const __sfr __banked __at(0xF0) mmu_page0_ro;
 __sfr __at(0xF0) mmu_page0;
 uint8_t *text_layer1 = (uint8_t *) 0x1000;
-
-typedef struct {
-  char title[TRACKER_TITLE_LEN + 1];
-  window_t* windows[NUM_VOICES];
-  uint8_t pattern_count;
-  pattern_t* patterns[NUM_PATTERNS];
-} track_t;
-
-// voice_t voice1 = { .index = 0 };
-// voice_t voice2 = { .index = 1 };
-// voice_t voice3 = { .index = 2 };
-// voice_t voice4 = { .index = 3 };
 
 pattern_t pattern0;
 pattern_t pattern1;
@@ -114,14 +101,15 @@ window_t win_Pattern4 = {
   .title = "Voice 4"
 };
 
-track_t track = {
-  .title = "Track 1",
-  .windows = {
+window_t* windows[NUM_VOICES] = {
     &win_Pattern1,
     &win_Pattern2,
     &win_Pattern3,
     &win_Pattern4,
-  },
+};
+
+track_t track = {
+  .title = "Track 1",
   .patterns = {
     &pattern0,
     &pattern1,
@@ -142,9 +130,8 @@ step_t* last_step_edit = NULL;
 uint8_t active_voice_index = 0;
 uint8_t active_cell = 0;
 uint8_t active_step = 0;
-uint8_t play_next_step = 0;
-uint8_t play_last_step = 0;
-uint16_t frames = 0;
+uint8_t zmt_last_step = 0;
+
 unsigned char active_dialog = 0x00;
 
 uint8_t cursor_x = 0;
@@ -156,10 +143,7 @@ playback_state_t state = T_NONE;
 #define ACTIVATE_VOICE(index) \
   active_voice_index = index; \
   active_voice = &active_pattern->voices[index]; \
-  cursor_x = track.windows[active_voice_index]->x + 2;
-
-#define MAP_SOUND()   zvb_map_peripheral(ZVB_PERI_SOUND_IDX)
-#define MAP_TEXT()    zvb_map_peripheral(ZVB_PERI_TEXT_IDX)
+  cursor_x = windows[active_voice_index]->x + 2;
 
 static inline void wait_vblank(void) {
   while((vid_ctrl_status & 2) == 0) { }
@@ -212,13 +196,13 @@ void update_cell(voice_t *voice, int8_t amount) {
 }
 
 void color_step(uint8_t step_index, uint8_t color) {
-  uint8_t x1 = track.windows[0]->x + 2;
-  uint8_t x2 = track.windows[1]->x + 2;
-  uint8_t x3 = track.windows[2]->x + 2;
-  uint8_t x4 = track.windows[3]->x + 2;
+  uint8_t x1 = windows[0]->x + 2;
+  uint8_t x2 = windows[1]->x + 2;
+  uint8_t x3 = windows[2]->x + 2;
+  uint8_t x4 = windows[3]->x + 2;
 
-  uint8_t y = track.windows[0]->y + 1 + step_index + 1;
-  uint8_t bg = track.windows[0]->bg;
+  uint8_t y = windows[0]->y + 1 + step_index + 1;
+  uint8_t bg = windows[0]->bg;
 
   uint8_t clr = (bg << 4) | (color & 0x0F);
 
@@ -239,20 +223,11 @@ void color_step(uint8_t step_index, uint8_t color) {
 }
 
 void refresh_step(uint8_t voice_index, uint8_t step_index) {
-  window_t *w = track.windows[voice_index];
+  window_t *w = windows[voice_index];
   voice_t *voice = &active_pattern->voices[voice_index];
   step_t *step = &voice->steps[step_index];
 
   window_gotoxy(w, 0, step_index + 1);
-
-  // // TODO: can this be done once outside of the function?
-  // uint8_t clr = w->fg;
-  // if(step_index == active_step) {
-  //   clr = VOICE_WINDOW_Hl2;
-  // }
-  // if(state == T_PLAY && step_index == play_next_step) {
-  //   clr = VOICE_WINDOW_HL1;
-  // }
 
   if((step_index == 0) || (step_index % 4 == 0)) {
     window_putc(w, 249);
@@ -294,8 +269,6 @@ void refresh_step(uint8_t voice_index, uint8_t step_index) {
     sprintf(textbuff, "%02X ", step->fx2);
     window_puts(w, textbuff);
   }
-
-  // color_step(step_index, clr);
 }
 
 void refresh_steps(uint8_t step_index) {
@@ -306,128 +279,10 @@ void refresh_steps(uint8_t step_index) {
   refresh_step(3, step_index);
 }
 
-static inline void process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
-  (void *)voice; // TODO: per channel effects
-  // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
-
-  if((fx >= FX_GOTO_0) && (fx <= FX_GOTO_31)) {
-    play_next_step = (fx - FX_GOTO_0) - 1;
-    frames = (play_next_step % 16) - 1; // TODO: yeah?
-    return;
-  }
-
-  switch(fx) {
-    case FX_NOTE_OFF: { } break;
-    case FX_NOTE_ON: { } break;
-
-    case FX_VOICE_SQ:   // fall thru
-    case FX_VOICE_TRI:  // fall thru
-    case FX_VOICE_SAW:  // fall thru
-    case FX_VOICE_NOISE: {
-      SOUND_WAVE(fx);
-    } break;
-
-    case FX_COUNT_0: // fall thru
-    case FX_COUNT_1: // fall thru
-    case FX_COUNT_2: // fall thru
-    case FX_COUNT_3: // fall thru
-    case FX_COUNT_4: // fall thru
-    case FX_COUNT_5: // fall thru
-    case FX_COUNT_6: // fall thru
-    case FX_COUNT_7: // fall thru
-    case FX_COUNT_8: {
-      if(step->fx1_attr == 0x00) step->fx1_attr = (fx - 0xC0);
-      else step->fx1_attr--;
-    } break;
-
-    // TODO: per channel volume control?
-    case FX_VOL_00_0: {
-      SOUND_VOL(VOL_0);
-    } break;
-    case FX_VOL_12_5: {
-      // TODO: 8 step volume control
-      SOUND_VOL(VOL_0);
-    } break;
-    case FX_VOL_25_0: {
-      SOUND_VOL(VOL_25);
-    } break;
-    case FX_VOL_37_5: {
-      // TODO: 8 step volume control
-      SOUND_VOL(VOL_25);
-    } break;
-    case FX_VOL_50_0: {
-      SOUND_VOL(VOL_50);
-    } break;
-    case FX_VOL_62_5: {
-      // TODO: 8 step volume control
-      SOUND_VOL(VOL_50);
-    } break;
-    case FX_VOL_75_0: {
-      SOUND_VOL(VOL_75);
-    } break;
-    case FX_VOL_87_5: {
-      // TODO: 8 step volume control
-      SOUND_VOL(VOL_75);
-    } break;
-    case FX_VOL_100: {
-      SOUND_VOL(VOL_100);
-    } break;
-  }
-}
-
-static inline void play_step(step_t *step, sound_voice_t voice) {
-  // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
-
-  // FX1 is pre-processed
-  if(step->fx1 != FX_OUT_OF_RANGE) process_fx(step, step->fx1, voice);
-
-  SOUND_SELECT(voice);
-
-  if(step->note != NOTE_OUT_OF_RANGE) {
-    note_t note = NOTES[step->note];
-    SOUND_DIV(note);
-  }
-
-  if(step->waveform != WAVEFORM_OUT_OF_RANGE) {
-    waveform_t waveform = step->waveform;
-    if(waveform > 0x03) waveform = WAV_SQUARE;
-    SOUND_WAVE(waveform);
-  }
-
-  // only process fx2 if fx1 is not counting, or it has counted down
-  if((step->fx1 >= FX_COUNT_0) && (step->fx1 <= FX_COUNT_8) && (step->fx1_attr != 0)) return;
-  // FX2 is post-processed ... does this matter?
-  if(step->fx2 != FX_OUT_OF_RANGE) process_fx(step, step->fx2, voice);
-}
-
-void play_steps(uint8_t step_index) {
-  step_t *step1 = &active_pattern->voices[0].steps[step_index];
-  step_t *step2 = &active_pattern->voices[1].steps[step_index];
-  step_t *step3 = &active_pattern->voices[2].steps[step_index];
-  step_t *step4 = &active_pattern->voices[3].steps[step_index];
-  MAP_SOUND();
-  play_step(step1, VOICE0);
-  play_step(step2, VOICE1);
-  play_step(step3, VOICE2);
-  play_step(step4, VOICE3);
-  MAP_TEXT();
-}
-
-void pattern_reset(void) {
-  frames = 0;
-  play_next_step = 0;
-  for(uint8_t s = 0; s < STEPS_PER_PATTERN; s++) {
-    for(uint8_t v = 0; v < NUM_VOICES; v++) {
-      active_pattern->voices[v].steps[s].fx1_attr = 0x00;
-      active_pattern->voices[v].steps[s].fx2_attr = 0x00;
-    }
-  }
-}
-
 void refresh_track(uint8_t voice_index) {
   // track_t *track = &tracks[track_index];
   voice_t *voice = &active_pattern->voices[voice_index];
-  window_t *window = track.windows[voice_index];
+  window_t *window = windows[voice_index];
   uint8_t i;
   window_gotoxy(window, 0, 0);
   window_puts_color(window, " No. W F1 F2\n", TEXT_COLOR_WHITE);
@@ -456,126 +311,11 @@ void refresh(void) {
   sprintf(textbuff, " P%.1u", active_pattern_index);
   window_puts(&winMain, textbuff);
   for(uint8_t i = 0; i < NUM_VOICES; i++) {
-    window_t *w = track.windows[i];
+    window_t *w = windows[i];
     window(w);
     refresh_track(i);
   }
   color_step(active_step, VOICE_WINDOW_Hl2);
-}
-
-zos_err_t file_load(const char *filename) {
-  zos_dev_t file_dev = open(filename, O_RDONLY);
-  if(file_dev < 0) {
-    printf("failed to open file, %d (%02x)\n", -file_dev, -file_dev);
-    return -file_dev;
-  } else {
-    zos_err_t err;
-    uint16_t size = 0;
-
-    printf("Loading '%s' ...\n", filename);
-
-    size = 3;
-    err = read(file_dev, textbuff, &size); // format header
-    if(err != ERR_SUCCESS) {
-      printf("error reading format header, %d (%02x)\n", err, err);
-      return err;
-    }
-    printf("Format: %03s\n", textbuff);
-
-    size = sizeof(uint8_t);
-    err = read(file_dev, textbuff, &size); // version header
-    if(err != ERR_SUCCESS) {
-      printf("error reading version header, %d (%02x)\n", err, err);
-      return err;
-    }
-    printf("Version: %d\n", textbuff[0]);
-
-    size = TRACKER_TITLE_LEN;
-    err = read(file_dev, textbuff, &size); // track title
-    if(err != ERR_SUCCESS) {
-      printf("error reading track title, %d (%02x)\n", err, err);
-      return err;
-    }
-    memcpy(track.title, textbuff, size);
-    track.title[TRACKER_TITLE_LEN] = 0x00; // NUL
-    printf("Track: %12s (read: %d)\n", track.title, size);
-
-    size = sizeof(uint8_t);
-    err = read(file_dev, &track.pattern_count, &size); // pattern count
-    if(err != ERR_SUCCESS) {
-      printf("error reading pattern count, %d (%02x)\n", err, err);
-      return err;
-    }
-    printf("Patterns: %d\n", track.pattern_count);
-
-    for(uint8_t p = 0; p < track.pattern_count; p++) {
-      printf("Loading pattern %d\n", p);
-      err = pattern_load(track.patterns[p], file_dev);
-      if(err != ERR_SUCCESS) {
-        printf("error loading patterns, %d (%02x)\n", err, err);
-        return err;
-      }
-    }
-
-    printf("File loaded.\n\n");
-
-    close(file_dev);
-  }
-  return ERR_SUCCESS;
-}
-
-zos_err_t file_save(const char *filename) {
-  zos_dev_t file_dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
-  if(file_dev < 0) {
-    printf("failed to open file for savings, %d (%02x)", -file_dev, -file_dev);
-    return -file_dev;
-  } else {
-    printf("Saving '%s' ...\n", filename);
-    zos_err_t err;
-    uint16_t size = 0;
-
-    size = 3;
-    err = write(file_dev, "ZMT", &size); // format header
-    if(err != ERR_SUCCESS) {
-      printf("error saving format header, %d (%02x)\n", err, err);
-      exit(err);
-    }
-
-    size = sizeof(uint8_t);
-    textbuff[0] =  0;
-    err = write(file_dev, textbuff, &size); // version header
-    if(err != ERR_SUCCESS) {
-      printf("error saving version header, %d (%02x)\n", err, err);
-      exit(err);
-    }
-
-    size = TRACKER_TITLE_LEN;
-    sprintf(textbuff, "%-.12s", track.title);
-    err = write(file_dev, textbuff, &size); // track title
-    if(err != ERR_SUCCESS) {
-      printf("error saving title length, %d (%02x)\n", err, err);
-      exit(err);
-    }
-
-    size = sizeof(uint8_t);
-    err = write(file_dev, &track.pattern_count, &size); // pattern count
-    if(err != ERR_SUCCESS) {
-      printf("error saving pattern count, %d (%02x)\n", err, err);
-      exit(err);
-    }
-
-    for(uint8_t p = 0; p < track.pattern_count; p++) {
-      printf("Writing pattern %d\n", p);
-      err = pattern_save(track.patterns[p], file_dev);
-      if(err != ERR_SUCCESS) {
-      printf("error saving patterns, %d (%02x)\n", err, err);
-      exit(err);
-    }
-    }
-    printf("File saved.\n");
-    close(file_dev);
-  }
-  return ERR_SUCCESS;
 }
 
 zos_err_t kb_mode(void *arg) {
@@ -610,7 +350,7 @@ uint8_t input(void) {
       case KB_KEY_SPACE: {
         if(state == T_NONE) {
           state = T_PLAY;
-          pattern_reset();
+          zmt_pattern_reset(active_pattern);
           cursor(0);
           /* show the "play" icon */
           _gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
@@ -620,15 +360,14 @@ uint8_t input(void) {
         } else {
           state = T_NONE;
           // stop sound
-          MAP_SOUND();
-          SOUND_OFF();
-          MAP_TEXT();
+          zmt_sound_off();
+
           /* hide the "play" icon */
           _gotoxy(win_Pattern1.x, win_Pattern1.y - 2);
           textcolor(winMain.fg);
           bgcolor(winMain.bg);
           cputc(' '); // clear the "> nnn" from the frame counter
-          color_step(play_next_step, VOICE_WINDOW_FG);
+          color_step(zmt_last_step, VOICE_WINDOW_FG);
           cursor(1);
         }
       } break;
@@ -659,7 +398,7 @@ uint8_t input(void) {
             active_pattern_index = track.pattern_count - 1;
           }
           active_pattern = track.patterns[active_pattern_index];
-          pattern_init(active_pattern);
+          zmt_pattern_init(active_pattern);
           ACTIVATE_VOICE(active_voice_index);
           refresh();
         } break;
@@ -800,17 +539,17 @@ int main(int argc, char** argv) {
   active_pattern = track.patterns[0];
   active_pattern_index = 0;
   if(argc == 1) {
-    err = file_load(argv[0]);
+    err = zmt_file_load(&track, argv[0]);
     if (err != ERR_SUCCESS) {
       printf("Failed to load data file: %d\n", err);
       exit(err);
     }
   } else {
     track.pattern_count = 1;
-    pattern_init(active_pattern);
+    zmt_pattern_init(active_pattern);
   }
 
-  // file_save("rle.zmt");
+  // zmt_file_save(&track, "rle.zmt");
   // exit(1);
 
   cursor(0);
@@ -833,9 +572,7 @@ int main(int argc, char** argv) {
 
   state = T_NONE;
 
-  MAP_SOUND();
-  SOUND_RESET(VOL_75);
-  MAP_TEXT();
+  zmt_reset(VOL_75);
 
   ACTIVATE_VOICE(0);
   last_step_edit = &active_pattern->voices[0].steps[active_step];
@@ -851,26 +588,11 @@ int main(int argc, char** argv) {
     }
     switch(state) {
       case T_PLAY: {
-        if(frames > FRAMES_PER_QUARTER) frames = 0;
-        // if(frames % FRAMES_PER_EIGTH == 0) { }
-        if(frames % FRAMES_PER_SIXTEENTH == 0) {
-          color_step(play_last_step, VOICE_WINDOW_FG);
-          play_last_step = play_next_step;
-
-          color_step(play_next_step, VOICE_WINDOW_HL1);
-          play_steps(play_next_step);
-
-          play_next_step++;
-          if(play_next_step >= STEPS_PER_PATTERN) play_next_step = 0;
-        }
-        frames++;
+        color_step(zmt_last_step, VOICE_WINDOW_FG);
+        zmt_last_step = zmt_tick(active_pattern);
+        color_step(zmt_last_step, VOICE_WINDOW_HL1);
       } break;
       case T_NONE: {
-        // DEBUG
-        // sprintf(textbuff, "%2u %2u %2u", cursor_x, cursor_x_offset, cursor_y);
-        // window_gotoxy(&winMain, 0, 0);
-        // window_puts(&winMain, textbuff);
-
         refresh_step(active_voice_index, active_step);
         _gotoxy(cursor_x + cursor_x_offset, cursor_y);
       } break;
@@ -880,9 +602,7 @@ int main(int argc, char** argv) {
   }
 
 __exit:
-  MAP_SOUND();
-  SOUND_RESET(VOL_0);
-  MAP_TEXT();
+  zmt_reset(VOL_0);
 
   // reset the screen
   err = ioctl(DEV_STDOUT, CMD_RESET_SCREEN, NULL);
@@ -914,7 +634,7 @@ __exit:
           break;
         default:
           textbuff[size - 1] = 0x00;
-          err = file_save(textbuff);
+          err = zmt_file_save(&track, textbuff);
           if(err != ERR_SUCCESS) {
             printf("error saving file, %d (%02x)\n", err, err);
             exit(err);

@@ -1,7 +1,15 @@
 #include <stdio.h>
+#include <string.h>
 // #include <zgdk.h>
 #include <zvb_sound.h>
 #include "tracker.h"
+
+static uint8_t frames = 0;
+static uint8_t next_step = 0;
+static uint8_t last_step = 0;
+
+/** Page Banking for Sound Peripheral */
+const __sfr __banked __at(0xF0) mmu_page0_ro;
 
 #define STEP_IS_EMPTY(step) ((step->note == NOTE_OUT_OF_RANGE) \
                             && (step->waveform == WAVEFORM_OUT_OF_RANGE) \
@@ -259,7 +267,117 @@ note_name_t NOTE_NAMES[] = {
   {'O','F','F'}
 };
 
-zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev) {
+
+void zmt_process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
+  (void *)voice; // TODO: per channel effects
+  // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
+
+  if((fx >= FX_GOTO_0) && (fx <= FX_GOTO_31)) {
+    next_step = (fx - FX_GOTO_0) - 1;
+    frames = (next_step % 16) - 1; // TODO: yeah?
+    return;
+  }
+
+  switch(fx) {
+    case FX_NOTE_OFF: { } break;
+    case FX_NOTE_ON: { } break;
+
+    case FX_VOICE_SQ:   // fall thru
+    case FX_VOICE_TRI:  // fall thru
+    case FX_VOICE_SAW:  // fall thru
+    case FX_VOICE_NOISE: {
+      SOUND_WAVE(fx);
+    } break;
+
+    case FX_COUNT_0: // fall thru
+    case FX_COUNT_1: // fall thru
+    case FX_COUNT_2: // fall thru
+    case FX_COUNT_3: // fall thru
+    case FX_COUNT_4: // fall thru
+    case FX_COUNT_5: // fall thru
+    case FX_COUNT_6: // fall thru
+    case FX_COUNT_7: // fall thru
+    case FX_COUNT_8: {
+      if(step->fx1_attr == 0x00) step->fx1_attr = (fx - 0xC0);
+      else step->fx1_attr--;
+    } break;
+
+    // TODO: per channel volume control?
+    case FX_VOL_00_0: {
+      SOUND_VOL(VOL_0);
+    } break;
+    case FX_VOL_12_5: {
+      // TODO: 8 step volume control
+      SOUND_VOL(VOL_0);
+    } break;
+    case FX_VOL_25_0: {
+      SOUND_VOL(VOL_25);
+    } break;
+    case FX_VOL_37_5: {
+      // TODO: 8 step volume control
+      SOUND_VOL(VOL_25);
+    } break;
+    case FX_VOL_50_0: {
+      SOUND_VOL(VOL_50);
+    } break;
+    case FX_VOL_62_5: {
+      // TODO: 8 step volume control
+      SOUND_VOL(VOL_50);
+    } break;
+    case FX_VOL_75_0: {
+      SOUND_VOL(VOL_75);
+    } break;
+    case FX_VOL_87_5: {
+      // TODO: 8 step volume control
+      SOUND_VOL(VOL_75);
+    } break;
+    case FX_VOL_100: {
+      SOUND_VOL(VOL_100);
+    } break;
+  }
+}
+
+void zmt_play_step(step_t *step, sound_voice_t voice) {
+  // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
+
+  // FX1 is pre-processed
+  if(step->fx1 != FX_OUT_OF_RANGE) zmt_process_fx(step, step->fx1, voice);
+
+  SOUND_SELECT(voice);
+
+  if(step->note != NOTE_OUT_OF_RANGE) {
+    note_t note = NOTES[step->note];
+    SOUND_DIV(note);
+  }
+
+  if(step->waveform != WAVEFORM_OUT_OF_RANGE) {
+    waveform_t waveform = step->waveform;
+    if(waveform > 0x03) waveform = WAV_SQUARE;
+    SOUND_WAVE(waveform);
+  }
+
+  // only process fx2 if fx1 is not counting, or it has counted down
+  if((step->fx1 >= FX_COUNT_0) && (step->fx1 <= FX_COUNT_8) && (step->fx1_attr != 0)) return;
+  // FX2 is post-processed ... does this matter?
+  if(step->fx2 != FX_OUT_OF_RANGE) zmt_process_fx(step, step->fx2, voice);
+}
+
+void zmt_play_pattern(pattern_t *pattern, uint8_t step_index) {
+  step_t *step1 = &pattern->voices[0].steps[step_index];
+  step_t *step2 = &pattern->voices[1].steps[step_index];
+  step_t *step3 = &pattern->voices[2].steps[step_index];
+  step_t *step4 = &pattern->voices[3].steps[step_index];
+
+  uint8_t backup_page = mmu_page0_ro;
+  zvb_map_peripheral(ZVB_PERI_SOUND_IDX);
+  zmt_play_step(step1, VOICE0);
+  zmt_play_step(step2, VOICE1);
+  zmt_play_step(step3, VOICE2);
+  zmt_play_step(step4, VOICE3);
+  zvb_map_peripheral(backup_page);
+}
+
+zos_err_t zmt_pattern_load(pattern_t *pattern, zos_dev_t dev) {
   uint16_t size = 0;
   int32_t seek_to = -1;
   zos_err_t err = ERR_SUCCESS;
@@ -294,17 +412,17 @@ zos_err_t pattern_load(pattern_t *pattern, zos_dev_t dev) {
             return err;
           }
         } else { // empty step
-          step_init(step, j);
+          zmt_step_init(step, j);
         }
       }
     } else { // empty pattern
-      voice_init(voice, i);
+      zmt_voice_init(voice, i);
     }
   }
   return err;
 }
 
-zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev) {
+zos_err_t zmt_pattern_save(pattern_t *pattern, zos_dev_t dev) {
   uint16_t size = 0;
   zos_err_t err = ERR_SUCCESS;
   uint8_t i = 0, j = 0;
@@ -356,7 +474,131 @@ zos_err_t pattern_save(pattern_t *pattern, zos_dev_t dev) {
   return err;
 }
 
-void step_init(step_t *step, uint8_t index) {
+zos_err_t zmt_file_load(track_t *track, const char *filename) {
+  zos_dev_t file_dev = open(filename, O_RDONLY);
+  if(file_dev < 0) {
+    printf("failed to open file, %d (%02x)\n", -file_dev, -file_dev);
+    return -file_dev;
+  } else {
+    zos_err_t err;
+    uint16_t size = 0;
+
+    printf("Loading '%s' ...\n", filename);
+
+    char textbuff[TRACKER_TITLE_LEN+1];
+
+    size = 3;
+    err = read(file_dev, textbuff, &size); // format header
+    if(err != ERR_SUCCESS) {
+      printf("error reading format header, %d (%02x)\n", err, err);
+      return err;
+    }
+    printf("Format: %03s\n", textbuff);
+
+    size = sizeof(uint8_t);
+    err = read(file_dev, textbuff, &size); // version header
+    if(err != ERR_SUCCESS) {
+      printf("error reading version header, %d (%02x)\n", err, err);
+      return err;
+    }
+    printf("Version: %d\n", textbuff[0]);
+
+    size = TRACKER_TITLE_LEN;
+    err = read(file_dev, textbuff, &size); // track title
+    if(err != ERR_SUCCESS) {
+      printf("error reading track title, %d (%02x)\n", err, err);
+      return err;
+    }
+    memcpy(track->title, textbuff, size);
+    track->title[TRACKER_TITLE_LEN] = 0x00; // NUL
+    printf("Track: %12s (read: %d)\n", track->title, size);
+
+    size = sizeof(uint8_t);
+    err = read(file_dev, &track->pattern_count, &size); // pattern count
+    if(err != ERR_SUCCESS) {
+      printf("error reading pattern count, %d (%02x)\n", err, err);
+      return err;
+    }
+    printf("Patterns: %d\n", track->pattern_count);
+
+    for(uint8_t p = 0; p < track->pattern_count; p++) {
+      printf("Loading pattern %d\n", p);
+      err = zmt_pattern_load(track->patterns[p], file_dev);
+      if(err != ERR_SUCCESS) {
+        printf("error loading patterns, %d (%02x)\n", err, err);
+        return err;
+      }
+    }
+
+    printf("File loaded.\n\n");
+
+    close(file_dev);
+  }
+  return ERR_SUCCESS;
+}
+
+zos_err_t zmt_file_save(track_t *track, const char *filename) {
+  zos_dev_t file_dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
+  if(file_dev < 0) {
+    printf("failed to open file for savings, %d (%02x)", -file_dev, -file_dev);
+    return -file_dev;
+  } else {
+    printf("Saving '%s' ...\n", filename);
+    zos_err_t err;
+    uint16_t size = 0;
+
+    char textbuff[TRACKER_TITLE_LEN+1];
+
+    size = 3;
+    err = write(file_dev, "ZMT", &size); // format header
+    if(err != ERR_SUCCESS) {
+      printf("error saving format header, %d (%02x)\n", err, err);
+      // exit(err);
+      return err;
+    }
+
+    size = sizeof(uint8_t);
+    textbuff[0] =  0;
+    err = write(file_dev, textbuff, &size); // version header
+    if(err != ERR_SUCCESS) {
+      printf("error saving version header, %d (%02x)\n", err, err);
+      // exit(err);
+      return err;
+    }
+
+    size = TRACKER_TITLE_LEN;
+    sprintf(textbuff, "%-.12s", track->title);
+    err = write(file_dev, textbuff, &size); // track title
+    if(err != ERR_SUCCESS) {
+      printf("error saving title length, %d (%02x)\n", err, err);
+      // exit(err);
+      return err;
+    }
+
+    size = sizeof(uint8_t);
+    err = write(file_dev, &track->pattern_count, &size); // pattern count
+    if(err != ERR_SUCCESS) {
+      printf("error saving pattern count, %d (%02x)\n", err, err);
+      // exit(err);
+      return err;
+    }
+
+    for(uint8_t p = 0; p < track->pattern_count; p++) {
+      printf("Writing pattern %d\n", p);
+      err = zmt_pattern_save(track->patterns[p], file_dev);
+      if(err != ERR_SUCCESS) {
+      printf("error saving patterns, %d (%02x)\n", err, err);
+      // exit(err);
+      return err;
+    }
+    }
+    printf("File saved.\n");
+    close(file_dev);
+  }
+  return ERR_SUCCESS;
+}
+
+void zmt_step_init(step_t *step, uint8_t index) {
   (void *)index; // unreferenced
   step->note = NOTE_OUT_OF_RANGE;
   step->waveform = WAVEFORM_OUT_OF_RANGE;
@@ -368,19 +610,62 @@ void step_init(step_t *step, uint8_t index) {
   step->fx2_attr = 0x00;
 }
 
-void voice_init(voice_t *voice, uint8_t index) {
+void zmt_voice_init(voice_t *voice, uint8_t index) {
   uint8_t i;
   voice->index = index;
   for(i = 0; i < STEPS_PER_PATTERN; i++) {
     step_t *step = &voice->steps[i];
-    step_init(step, i);
+    zmt_step_init(step, i);
   }
 }
 
-void pattern_init(pattern_t *pattern) {
+void zmt_pattern_init(pattern_t *pattern) {
   uint8_t i;
   for(i = 0; i < NUM_VOICES; i++) {
     voice_t *voice = &pattern->voices[i];
-    voice_init(voice, i);
+    zmt_voice_init(voice, i);
   }
+}
+
+void zmt_pattern_reset(pattern_t *pattern) {
+  frames = 0;
+  next_step = 0;
+  for(uint8_t s = 0; s < STEPS_PER_PATTERN; s++) {
+    for(uint8_t v = 0; v < NUM_VOICES; v++) {
+      pattern->voices[v].steps[s].fx1_attr = 0x00;
+      pattern->voices[v].steps[s].fx2_attr = 0x00;
+    }
+  }
+}
+
+uint8_t zmt_tick(pattern_t *pattern) {
+  if(frames > FRAMES_PER_QUARTER) frames = 0;
+  // if(frames % FRAMES_PER_EIGTH == 0) { }
+  if(frames % FRAMES_PER_SIXTEENTH == 0) {
+    // color_step(last_step, VOICE_WINDOW_FG);
+    last_step = next_step;
+
+    // color_step(next_step, VOICE_WINDOW_HL1);
+    zmt_play_pattern(pattern, next_step);
+
+    next_step++;
+    if(next_step >= STEPS_PER_PATTERN) next_step = 0;
+  }
+  frames++;
+
+  return next_step;
+}
+
+void zmt_sound_off(void) {
+  uint8_t backup_page = mmu_page0_ro;
+  zvb_map_peripheral(ZVB_PERI_SOUND_IDX);
+  SOUND_OFF();
+  zvb_map_peripheral(backup_page);
+}
+
+void zmt_reset(sound_volume_t vol) {
+  uint8_t backup_page = mmu_page0_ro;
+  zvb_map_peripheral(ZVB_PERI_SOUND_IDX);
+  SOUND_RESET(vol);
+  zvb_map_peripheral(backup_page);
 }
