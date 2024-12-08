@@ -196,6 +196,11 @@ typedef struct {
 #define EMPTY_VOICE   0xFE
 #define EMPTY_STEP    0xFF
 
+#define STEP_CELL_NOTE  0x01
+#define STEP_CELL_WAVE  0x02
+#define STEP_CELL_FX1   0x04
+#define STEP_CELL_FX2   0x08
+
 typedef struct {
   uint8_t index;
   step_t steps[STEPS_PER_PATTERN];

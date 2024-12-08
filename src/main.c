@@ -14,7 +14,7 @@
 #include "windows.h"
 #include "tracker.h"
 
-static const char dummy[1];
+static const char dummy[5];
 static char textbuff[SCREEN_COL80_WIDTH];
 
 __sfr __banked __at(0x9d) vid_ctrl_status;
@@ -614,12 +614,12 @@ __exit:
   kb_mode((void*) (KB_READ_BLOCK | KB_MODE_COOKED));
   if(err != ERR_SUCCESS) {
     printf("Failed to change keyboard mode %d (%02x)\n", err, err);
-    exit(1);
+    exit(err);
   }
 
   uint16_t size = 0;
   do {
-    printf("Enter filename to save recording, press enter to quit without saving:\n");
+    printf("Enter filename to save, press enter to quit without saving:\n");
     size = sizeof(textbuff);
     err = read(DEV_STDIN, textbuff, &size);
     if(err != ERR_SUCCESS) {
