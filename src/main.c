@@ -10,7 +10,7 @@
 // views
 #include "pattern.h"
 #include "arrange.h"
-
+#include "file_dialog.h"
 static zos_err_t err = ERR_SUCCESS;
 unsigned char key = 0;
 keypress_t keypress_handler;
@@ -53,16 +53,6 @@ window_t win_Help = {
   .title = "Help"
 };
 
-window_t win_FileSave = {
-  .x = 10,
-  .y = 10,
-  .w = 30,
-  .h = 5,
-  .flags = WIN_BORDER | WIN_SHADOW,
-  .fg = TEXT_COLOR_BLACK,
-  .bg = TEXT_COLOR_LIGHT_GRAY,
-  .title = "Save As...",
-};
 
 __sfr __banked __at(0x9d) vid_ctrl_status;
 static inline void wait_vblank(void) {
@@ -116,64 +106,14 @@ void view_switch(View view) {
       window_clreol(&win_Help);
     } break;
     case VIEW_FILE_SAVE: {
-      // TODO: Implement a proper File dialog system
-      win_FileSave.title = "Save As";
-      window(&win_FileSave);
-      window_puts(&win_FileSave, "\n  Filename: [\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9]");
-      cursor_xy(win_FileSave.x + 14, win_FileSave.y + 2);
-      cursor(1);
-      zvb_peri_text_color = ((TEXT_COLOR_LIGHT_GRAY << 4) | (TEXT_COLOR_BLACK & 0x0F));
-      err = kb_mode((void *)(KB_READ_BLOCK | KB_MODE_COOKED));
-      handle_error(err, "keyboard mode", 0);
-
-      uint16_t size = TRACKER_TITLE_LEN;
-      sprintf(textbuff, "            ");
-      err = read(DEV_STDIN, textbuff, &size);
-      handle_error(err, "keyboard read", 0);
-      if(textbuff[size-1] == CH_NEWLINE) {
-        textbuff[size-1] = 0x00;
-      }
-      sprintf(textbuff, "%.12s", textbuff);
-      cursor(0);
-
-      err = kb_mode((void *)(KB_READ_NON_BLOCK | KB_MODE_RAW));
-      handle_error(err, "init keyboard", 0);
-
-      err = zmt_file_save(&track, textbuff);
-      handle_error(err, "file save", 0);
-
-      // window_clrscr(&win_Main);
-      // view_switch(previous_view);
-
+      keypress_handler = NULL;
+      current_step_handler = NULL;
+      file_dialog_show(FILE_SAVE);
     } break;
     case VIEW_FILE_LOAD: {
-      win_FileSave.title = "Load From";
-      window(&win_FileSave);
-      window_puts(&win_FileSave, "\n  Filename: [\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9]");
-      cursor_xy(win_FileSave.x + 14, win_FileSave.y + 2);
-      cursor(1);
-      zvb_peri_text_color = ((TEXT_COLOR_LIGHT_GRAY << 4) | (TEXT_COLOR_BLACK & 0x0F));
-      err = kb_mode((void *)(KB_READ_BLOCK | KB_MODE_COOKED));
-      handle_error(err, "keyboard mode", 0);
-
-      uint16_t size = TRACKER_TITLE_LEN;
-      sprintf(textbuff, "            ");
-      err = read(DEV_STDIN, textbuff, &size);
-      handle_error(err, "keyboard read", 0);
-      if(textbuff[size-1] == CH_NEWLINE) {
-        textbuff[size-1] = 0x00;
-      }
-      sprintf(textbuff, "%.12s", textbuff);
-      cursor(0);
-
-      err = kb_mode((void *)(KB_READ_NON_BLOCK | KB_MODE_RAW));
-      handle_error(err, "init keyboard", 0);
-
-      err = zmt_file_load(&track, textbuff);
-      handle_error(err, "file open", 0);
-
-      // window_clrscr(&win_Main);
-      // view_switch(previous_view);
+      keypress_handler = NULL;
+      current_step_handler = NULL;
+      file_dialog_show(FILE_LOAD);
     }
   }
   active_view = view;
@@ -234,7 +174,7 @@ int main(int argc, char** argv) {
   handle_error(err, "init keyboard", 1);
 
   // disable cursor blink
-  SET_CURSOR_BLINK(0);
+  cursor(0);
 
   // load or init file, and reset ZMT
   load_or_init_file(argc, argv);
@@ -261,8 +201,13 @@ int main(int argc, char** argv) {
 
       // print the playhead
       sprintf(textbuff, "%02X %02X", current_pattern, current_step);
-      window_gotoxy(&win_Main, 0, 0);
-      window_puts(&win_Main, textbuff);
+      // window_gotoxy(&win_Main, 0, 0);
+      // window_puts(&win_Main, textbuff);
+      text_map_vram();
+      setcolor(TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
+      cursor_xy(1,1);
+      print(textbuff);
+      text_demap_vram();
     }
   }
 
