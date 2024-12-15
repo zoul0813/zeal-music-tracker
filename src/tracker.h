@@ -1,7 +1,8 @@
 #include <stddef.h>
 #include <zos_vfs.h>
 #include <zvb_hardware.h>
-// #include <zgdk.h>
+#include <zvb_sound.h>
+
 
 #ifndef TRACKER_H
 #define TRACKER_H
@@ -24,6 +25,8 @@
  * ZMTn - file header with version (n)
  * Title - 12 bytes
  * Pattern count - 1 byte
+ * Arrangement bitmap - 64-bit (8 bytes)
+ * Arrangement cells - 2 bytes
  * Voice bitmap - 1 byte (low nibble) - 00001111 (all four voices have data)
  * Voice header - 4 bytes (step bitmap) 00000000 00000000 00000000 00000000 - 1 represents that the step exists
  * Step header - 1 byte (low nibble) - 00001001 (1 = note, 2 = wave, 3 = F1, 4 = F2)
@@ -35,6 +38,10 @@
  * "ZMT",0x00 - Header
  * "My Track    " - Title
  * 0x02 - 2 Patterns
+ *
+ *** ARRANGEMENT
+ * 0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00 - arrangement bitmap
+ * 0x00,0xFF - first arrangement, pattern 0, no fx
  *
  *** PATTERN 0
  * 0x03 - 2 populated Voices
@@ -76,9 +83,10 @@
 #define STEPS_PER_PATTERN     32U
 #define NUM_VOICES            4U
 #define NUM_PATTERNS          8U
+#define NUM_ARRANGEMENTS      64U
 #define TRACKER_TITLE_LEN     12U
 
-#define FRAMES_PER_QUARTER    (32U)
+#define FRAMES_PER_QUARTER    (16U)
 #define FRAMES_PER_EIGTH      (FRAMES_PER_QUARTER >> 1)
 #define FRAMES_PER_SIXTEENTH  (FRAMES_PER_QUARTER >> 2)
 #define FRAMES_PER_STEP       (FRAMES_PER_SIXTEENTH)
@@ -212,52 +220,107 @@ typedef struct {
   // TODO: add sample voice?
 } pattern_t;
 
+typedef enum {
+  Cell_Pattern = 0,
+  Cell_Effect = 1,
+} arrangement_cell_t;
+
+typedef struct {
+  uint8_t pattern_index;
+  fx_t fx;
+} arrangement_t;
+
+#define ARRANGEMENT_OUT_OF_RANGE  (0xFF)
+
 typedef struct {
   char title[TRACKER_TITLE_LEN + 1];
   uint8_t pattern_count;
+  arrangement_t arrangement[NUM_ARRANGEMENTS];
   pattern_t* patterns[NUM_PATTERNS];
 } track_t;
+
+/* Tick the playhead forward one frame, called every video frame */
+uint8_t zmt_tick(track_t *track, uint8_t use_arrangement, uint8_t *current_pattern, uint8_t *current_step);
+
+
+
+/* load a pattern from file */
+zos_err_t zmt_pattern_load(pattern_t *pattern, zos_dev_t dev);
+/* save a pattern to file */
+zos_err_t zmt_pattern_save(pattern_t *pattern, zos_dev_t dev);
+/* load arrange from file */
+zos_err_t zmt_arrangement_load(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_dev_t dev);
+/* save arrangement to file */
+zos_err_t zmt_arrangement_save(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_dev_t dev);
+/* load a track from file*/
+zos_err_t zmt_file_load(track_t *track, const char *filename);
+/* save a track to file */
+zos_err_t zmt_file_save(track_t *track, const char *filename);
+
+
 
 void zmt_process_fx(step_t *step, fx_t fx, sound_voice_t voice);
 void zmt_play_step(step_t *step, sound_voice_t voice);
 void zmt_play_pattern(pattern_t *pattern, uint8_t step_index);
-zos_err_t zmt_pattern_load(pattern_t *pattern, zos_dev_t dev);
-zos_err_t zmt_pattern_save(pattern_t *pattern, zos_dev_t dev);
-zos_err_t zmt_file_load(track_t *track, const char *filename);
-zos_err_t zmt_file_save(track_t *track, const char *filename);
+
+
+
+/* advanced to the next pattern */
+uint8_t zmt_pattern_next(track_t *track);
+/* recede to the prev pattern */
+uint8_t zmt_pattern_prev(track_t *track);
+/* set the current pattern */
+uint8_t zmt_pattern_set(track_t *track, uint8_t index);
+
+/* Initialize a step, zeroes out everything*/
 void zmt_step_init(step_t *step, uint8_t index);
+/* Initialize new voice, zeroes out everything */
 void zmt_voice_init(voice_t *voice, uint8_t index);
+/* Initialize a new pattern, zeroes out everything */
 void zmt_pattern_init(pattern_t *pattern);
+/* Initialize a new track, zeroes out everything */
+void zmt_track_init(track_t *track);
+
+/* Reset a pattern, zeroing out playback values */
 void zmt_pattern_reset(pattern_t *pattern);
+/* Reset a track, zeroing out playback values and returning the current pattern index */
+uint8_t zmt_track_reset(track_t *track, uint8_t reset_pattern);
+
+
+
+/* sound off */
 void zmt_sound_off(void);
+/* reset the sound system, setting volume */
 void zmt_reset(sound_volume_t vol);
-uint8_t zmt_tick(pattern_t *pattern);
 
+
+
+/** Internals */
 #define VOICEALL  (VOICE0 | VOICE1 | VOICE2 | VOICE3)
-
+/* Internal - set divider */
 static inline void SOUND_DIV(uint16_t div) {
   zvb_peri_sound_freq_low  = div & 0xff;
   zvb_peri_sound_freq_high = (div >> 8) & 0xff;
 }
-
+/* Internal - set waveform */
 static inline void SOUND_WAVE(uint8_t waveform) {
   zvb_peri_sound_wave = (waveform & 03);
 }
-
+/* Internal - set voice selection */
 static inline void SOUND_SELECT(uint8_t voices) {
   zvb_peri_sound_select = voices;
 }
-
+/* Internal - sound off */
 static inline void SOUND_OFF(void) {
   SOUND_SELECT(VOICEALL);
   zvb_peri_sound_freq_low  = 0x00;
   zvb_peri_sound_freq_high = 0x00;
 }
-
+/* Internal - set volume */
 static inline void SOUND_VOL(uint8_t vol) {
   zvb_peri_sound_master_vol = vol;
 }
-
+/* Internal - set volume, hold voices, sound off */
 static inline void SOUND_RESET(uint8_t vol) {
   SOUND_VOL(vol);
   zvb_peri_sound_hold &= ~VOICEALL;

@@ -5,6 +5,8 @@
 #include "tracker.h"
 
 static uint8_t frames = 0;
+static uint8_t current_pattern = 0;
+static uint8_t current_arrangement = 0;
 static uint8_t next_step = 0;
 static uint8_t last_step = 0;
 
@@ -14,10 +16,15 @@ static const char* str_error_msg_read = "failed to write %d, %0d (%02x)\n";
 /** Page Banking for Sound Peripheral */
 const __sfr __banked __at(0xF0) mmu_page0_ro;
 
-#define STEP_IS_EMPTY(step) ((step->note == NOTE_OUT_OF_RANGE) \
-                            && (step->waveform == WAVEFORM_OUT_OF_RANGE) \
-                            && (step->fx1 == FX_OUT_OF_RANGE) \
-                            && (step->fx2 == FX_OUT_OF_RANGE))
+#define STEP_IS_EMPTY(step) \
+  ((step->note == NOTE_OUT_OF_RANGE) \
+  && (step->waveform == WAVEFORM_OUT_OF_RANGE) \
+  && (step->fx1 == FX_OUT_OF_RANGE) \
+  && (step->fx2 == FX_OUT_OF_RANGE))
+
+#define ARRANGEMENT_IS_EMPTY(arrange) \
+  ((arrange->pattern_index == ARRANGEMENT_OUT_OF_RANGE) \
+  && (arrange->fx == FX_OUT_OF_RANGE))
 
 note_t NOTES[] = {
   /* Octave 0 */
@@ -271,6 +278,93 @@ note_name_t NOTE_NAMES[] = {
 };
 
 
+/* Tick the playhead forward one frame, called every video frame */
+uint8_t zmt_tick(track_t *track, uint8_t use_arrangement, uint8_t *_current_pattern, uint8_t *_current_step) {
+  pattern_t *pattern = track->patterns[current_pattern];
+  if(frames > FRAMES_PER_QUARTER) frames = 0;
+  // if(frames % FRAMES_PER_EIGTH == 0) { }
+  if(frames % FRAMES_PER_SIXTEENTH == 0) {
+    last_step = next_step;
+    zmt_play_pattern(pattern, next_step);
+
+    next_step++;
+    if(next_step >= STEPS_PER_PATTERN) {
+      if(use_arrangement) {
+        current_arrangement++;
+        arrangement_t *a = &track->arrangement[current_arrangement];
+        if(a->pattern_index == ARRANGEMENT_OUT_OF_RANGE) {
+          current_arrangement = 0; // reset
+          a = &track->arrangement[current_arrangement];
+        }
+
+        // Check arrangement FX ...
+        switch(a->fx) {
+          case FX_OUT_OF_RANGE: {} break;
+          // goto 0-32
+          case 0x00: // fall thru
+          case 0x01: // fall thru
+          case 0x02: // fall thru
+          case 0x03: // fall thru
+          case 0x04: // fall thru
+          case 0x05: // fall thru
+          case 0x06: // fall thru
+          case 0x07: // fall thru
+          case 0x08: // fall thru
+          case 0x09: // fall thru
+          case 0x0A: // fall thru
+          case 0x0B: // fall thru
+          case 0x0C: // fall thru
+          case 0x0D: // fall thru
+          case 0x0E: // fall thru
+          case 0x0F: // fall thru
+          case 0x10: // fall thru
+          case 0x11: // fall thru
+          case 0x12: // fall thru
+          case 0x13: // fall thru
+          case 0x14: // fall thru
+          case 0x15: // fall thru
+          case 0x16: // fall thru
+          case 0x17: // fall thru
+          case 0x18: // fall thru
+          case 0x19: // fall thru
+          case 0x1A: // fall thru
+          case 0x1B: // fall thru
+          case 0x1C: // fall thru
+          case 0x1D: // fall thru
+          case 0x1E: // fall thru
+          case 0x1F: {} break;
+
+          // transpose
+          case 0xD0: // fall thru
+          case 0xD1: // fall thru
+          case 0xD2: // fall thru
+          case 0xD3: // fall thru
+          case 0xD4: // fall thru
+          case 0xD5: // fall thru
+          case 0xD6: // fall thru
+          case 0xD7: // fall thru
+          case 0xD8: // fall thru
+          case 0xD9: // fall thru
+          case 0xDA: // fall thru
+          case 0xDB: // fall thru
+          case 0xDC: {} break;
+        }
+
+        current_pattern = a->pattern_index;
+      }
+      next_step = 0;
+    }
+  }
+  frames++;
+
+  *_current_pattern = current_pattern;
+  *_current_step = last_step;
+
+  return next_step;
+}
+
+
+
 void zmt_process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
   (void *)voice; // TODO: per channel effects
   // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
@@ -380,6 +474,8 @@ void zmt_play_pattern(pattern_t *pattern, uint8_t step_index) {
   zvb_map_peripheral(backup_page);
 }
 
+
+/* load a pattern from file */
 zos_err_t zmt_pattern_load(pattern_t *pattern, zos_dev_t dev) {
   zmt_pattern_init(pattern);
   uint16_t size = 0;
@@ -472,7 +568,7 @@ zos_err_t zmt_pattern_load(pattern_t *pattern, zos_dev_t dev) {
 
   return err;
 }
-
+/* save a pattern to file */
 zos_err_t zmt_pattern_save(pattern_t *pattern, zos_dev_t dev) {
   uint16_t size = 0;
   zos_err_t err = ERR_SUCCESS;
@@ -559,11 +655,117 @@ zos_err_t zmt_pattern_save(pattern_t *pattern, zos_dev_t dev) {
   }
   return err;
 }
+/* load arrange from file */
+zos_err_t zmt_arrangement_load(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_dev_t dev) {
+  zos_err_t err = ERR_SUCCESS;
+  uint16_t size = 0;
+  uint8_t i = 0;
+  arrangement_t *a;
 
+  uint32_t bitmap_high = 0;
+  uint32_t bitmap_low = 0;
+  uint8_t bit = 0;
+
+  size = sizeof(uint32_t);
+  err = read(dev, &bitmap_low, &size);
+  if(err != ERR_SUCCESS) {
+    printf(str_error_msg_write, 26, err, err);
+    return err;
+  }
+  size = sizeof(uint32_t);
+  err = read(dev, &bitmap_high, &size);
+  if(err != ERR_SUCCESS) {
+    printf(str_error_msg_write, 27, err, err);
+    return err;
+  }
+
+  for(i = 0; i < NUM_ARRANGEMENTS/2;i++) {
+    bit = bitmap_low & 0x01;
+    bitmap_low = bitmap_low >> 1;
+    if(bit == 0) continue;
+    a = &arrangement[i];
+    size = sizeof(arrangement_t);
+    err = read(dev, a, &size);
+    if(err != ERR_SUCCESS) {
+      printf(str_error_msg_write, 18, err, err);
+      return err;
+    }
+  }
+  for(i = NUM_ARRANGEMENTS/2; i < NUM_ARRANGEMENTS;i++) {
+    bit = bitmap_high & 0x01;
+    bitmap_high = bitmap_high >> 1;
+    if(bit == 0) continue;
+    a = &arrangement[i];
+    size = sizeof(arrangement_t);
+    err = read(dev, a, &size);
+    if(err != ERR_SUCCESS) {
+      printf(str_error_msg_write, 18, err, err);
+      return err;
+    }
+  }
+
+  return err;
+}
+/* save arrangement to file */
+zos_err_t zmt_arrangement_save(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_dev_t dev) {
+  zos_err_t err = ERR_SUCCESS;
+  uint16_t size = 0;
+  uint8_t i = 0;
+  arrangement_t *a;
+
+  uint32_t bitmap_high = 0;
+  uint32_t bitmap_low = 0;
+  uint8_t bitmap_bit = 0;
+
+  /* generate bitmap_low */
+  for(i = NUM_ARRANGEMENTS; i > NUM_ARRANGEMENTS/2; i--) {
+    a = &arrangement[i-1];
+    bitmap_high = bitmap_high << 1;
+    if(!ARRANGEMENT_IS_EMPTY(a)) bitmap_high++;
+  }
+  /* generate bitmap_high */
+  for(i = NUM_ARRANGEMENTS/2; i > 0; i--) {
+    a = &arrangement[i-1];
+    bitmap_low = bitmap_low << 1;
+    if(!ARRANGEMENT_IS_EMPTY(a)) bitmap_low++;
+  }
+
+  size = sizeof(uint32_t);
+  err = write(dev, &bitmap_low, &size);
+  if(err != ERR_SUCCESS) {
+    printf(str_error_msg_write, 16, err, err);
+    return err;
+  }
+
+  size = sizeof(uint32_t);
+  err = write(dev, &bitmap_high, &size);
+  if(err != ERR_SUCCESS) {
+    printf(str_error_msg_write, 17, err, err);
+    return err;
+  }
+
+  /* generate arrangement data */
+  for(i = 0; i < NUM_ARRANGEMENTS; i++) {
+    a = &arrangement[i];
+    if(!ARRANGEMENT_IS_EMPTY(a)) {
+      size = sizeof(arrangement_t);
+      err = write(dev, a, &size);
+      if(err != ERR_SUCCESS) {
+        printf(str_error_msg_write, 18, err, err);
+        return err;
+      }
+    }
+  }
+
+  return err;
+}
+/* load a track from file*/
 zos_err_t zmt_file_load(track_t *track, const char *filename) {
   zos_err_t err;
   uint16_t size = 0;
   char textbuff[TRACKER_TITLE_LEN+1];
+
+  zmt_track_init(track); // clear out the track, before loading data
 
   zos_dev_t file_dev = open(filename, O_RDONLY);
   if(file_dev < 0) {
@@ -571,7 +773,7 @@ zos_err_t zmt_file_load(track_t *track, const char *filename) {
     return -file_dev;
   }
 
-  printf("Loading '%s' ...\n", filename);
+  // printf("Loading '%s' ...\n", filename);
 
   size = 3;
   err = read(file_dev, textbuff, &size); // format header
@@ -579,7 +781,7 @@ zos_err_t zmt_file_load(track_t *track, const char *filename) {
     printf("error reading format header, %d (%02x)\n", err, err);
     return err;
   }
-  printf("Format: %.3s\n", textbuff);
+  // printf("Format: %.3s\n", textbuff);
 
   size = sizeof(uint8_t);
   err = read(file_dev, textbuff, &size); // version header
@@ -587,7 +789,7 @@ zos_err_t zmt_file_load(track_t *track, const char *filename) {
     printf("error reading version header, %d (%02x)\n", err, err);
     return err;
   }
-  printf("Version: %d\n", textbuff[0]);
+  // printf("Version: %d\n", textbuff[0]);
 
   size = TRACKER_TITLE_LEN;
   err = read(file_dev, textbuff, &size); // track title
@@ -597,7 +799,7 @@ zos_err_t zmt_file_load(track_t *track, const char *filename) {
   }
   memcpy(track->title, textbuff, size);
   track->title[TRACKER_TITLE_LEN] = 0x00; // NUL
-  printf("Track: %12s (read: %d)\n", track->title, size);
+  // printf("Track: %12s (read: %d)\n", track->title, size);
 
   size = sizeof(uint8_t);
   err = read(file_dev, &track->pattern_count, &size); // pattern count
@@ -605,10 +807,16 @@ zos_err_t zmt_file_load(track_t *track, const char *filename) {
     printf("error reading pattern count, %d (%02x)\n", err, err);
     return err;
   }
-  printf("Patterns: %d\n", track->pattern_count);
+  // printf("Patterns: %d\n", track->pattern_count);
+
+  err = zmt_arrangement_load(track->arrangement, file_dev);
+  if(err != ERR_SUCCESS) {
+    printf("error reading arrangement, %d (%02x)\n", err, err);
+    return err;
+  }
 
   for(uint8_t p = 0; p < track->pattern_count; p++) {
-    printf("Loading pattern %d\n", p);
+    // printf("Loading pattern %d\n", p);
     err = zmt_pattern_load(track->patterns[p], file_dev);
     if(err != ERR_SUCCESS) {
       printf("error loading patterns, %d (%02x)\n", err, err);
@@ -616,22 +824,22 @@ zos_err_t zmt_file_load(track_t *track, const char *filename) {
     }
   }
 
-  printf("File loaded.\n\n");
+  // printf("File loaded.\n\n");
   err = close(file_dev);
   return err;
 }
-
+/* save a track to file */
 zos_err_t zmt_file_save(track_t *track, const char *filename) {
   zos_err_t err;
   uint16_t size = 0;
   char textbuff[TRACKER_TITLE_LEN+1];
   zos_dev_t file_dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
   if(file_dev < 0) {
-    printf("failed to open file for savings, %d (%02x)", -file_dev, -file_dev);
+    printf("failed to open file for saving, '%s' %d (%02x)\n", filename, -file_dev, -file_dev);
     return -file_dev;
   }
 
-  printf("Saving '%s' ...\n", filename);
+  // printf("Saving '%s' ...\n", filename);
 
   /** FILE HEADER */
   size = 3;
@@ -664,20 +872,49 @@ zos_err_t zmt_file_save(track_t *track, const char *filename) {
     return err;
   }
 
+  /** ARRANGEMENT */
+  err = zmt_arrangement_save(track->arrangement, file_dev);
+  if(err != ERR_SUCCESS) {
+    printf("error saving arrangement, %d (%02x)\n", err, err);
+    return err;
+  }
+
   /** PATTERNS */
   for(uint8_t p = 0; p < track->pattern_count; p++) {
-    printf("Writing pattern %d\n", p);
+    // printf("Writing pattern %d\n", p);
     err = zmt_pattern_save(track->patterns[p], file_dev);
     if(err != ERR_SUCCESS) {
       printf("error saving patterns, %d (%02x)\n", err, err);
       return err;
     }
   }
-  printf("File saved.\n");
+  // printf("File saved.\n");
   err = close(file_dev);
   return err;
 }
 
+
+
+/* advanced to the prev pattern */
+uint8_t zmt_pattern_prev(track_t *track) {
+  if(current_pattern > 0) current_pattern--;
+  else { current_pattern = track->pattern_count - 1; }
+  return current_pattern;
+}
+/* recede to the next pattern */
+uint8_t zmt_pattern_next(track_t *track) {
+  current_pattern++;
+  if(current_pattern >= track->pattern_count) current_pattern = 0;
+  return current_pattern;
+}
+/* set the current pattern */
+uint8_t zmt_pattern_set(track_t *track, uint8_t index) {
+  current_pattern = index;
+  if(current_pattern > track->pattern_count) current_pattern = 0;
+  return current_pattern;
+}
+
+/* Initialize a step, zeroes out everything*/
 void zmt_step_init(step_t *step, uint8_t index) {
   (void *)index; // unreferenced
   step->note = NOTE_OUT_OF_RANGE;
@@ -690,6 +927,7 @@ void zmt_step_init(step_t *step, uint8_t index) {
   step->fx2_attr = 0x00;
 }
 
+/* Initialize new voice, zeroes out everything */
 void zmt_voice_init(voice_t *voice, uint8_t index) {
   uint8_t i;
   voice->index = index;
@@ -699,6 +937,7 @@ void zmt_voice_init(voice_t *voice, uint8_t index) {
   }
 }
 
+/* Initialize a new pattern, zeroes out everything */
 void zmt_pattern_init(pattern_t *pattern) {
   uint8_t i;
   for(i = 0; i < NUM_VOICES; i++) {
@@ -707,6 +946,32 @@ void zmt_pattern_init(pattern_t *pattern) {
   }
 }
 
+void zmt_arrangement_init(arrangement_t arrangement[NUM_ARRANGEMENTS]) {
+  uint8_t i = 0;
+  for(i = 0; i < NUM_ARRANGEMENTS; i++) {
+    arrangement_t *a = &arrangement[i];
+    a->pattern_index = ARRANGEMENT_OUT_OF_RANGE;
+    // if(i % 3 == 0) {
+    //   a->fx = i;
+    // } else {
+      a->fx = FX_OUT_OF_RANGE;
+    // }
+  }
+  arrangement[0].pattern_index = 0;
+}
+
+/* Initialize a new track, zeroes out everything */
+void zmt_track_init(track_t *track) {
+  memcpy(track->title, "New Track", 9);
+  track->pattern_count = 1;
+  current_pattern = 0;
+  zmt_arrangement_init(track->arrangement);
+  zmt_pattern_init(track->patterns[current_pattern]);
+}
+
+
+
+/* Reset a pattern, zeroing out playback values */
 void zmt_pattern_reset(pattern_t *pattern) {
   frames = 0;
   next_step = 0;
@@ -718,24 +983,27 @@ void zmt_pattern_reset(pattern_t *pattern) {
   }
 }
 
-uint8_t zmt_tick(pattern_t *pattern) {
-  if(frames > FRAMES_PER_QUARTER) frames = 0;
-  // if(frames % FRAMES_PER_EIGTH == 0) { }
-  if(frames % FRAMES_PER_SIXTEENTH == 0) {
-    // color_step(last_step, VOICE_WINDOW_FG);
-    last_step = next_step;
-
-    // color_step(next_step, VOICE_WINDOW_HL1);
-    zmt_play_pattern(pattern, next_step);
-
-    next_step++;
-    if(next_step >= STEPS_PER_PATTERN) next_step = 0;
+/* Reset a track, zeroing out playback values*/
+uint8_t zmt_track_reset(track_t *track, uint8_t reset_pattern) {
+  if(reset_pattern) {
+    current_arrangement = 0;
+    arrangement_t *a = &track->arrangement[0];
+    if(a->pattern_index != ARRANGEMENT_OUT_OF_RANGE) {
+      current_pattern = a->pattern_index;
+    } else {
+      current_pattern = 0;
+    }
   }
-  frames++;
-
-  return next_step;
+  frames = 0;
+  next_step = 0;
+  pattern_t *pattern = track->patterns[current_pattern];
+  zmt_pattern_reset(pattern);
+  return current_pattern;
 }
 
+
+
+/* sound off*/
 void zmt_sound_off(void) {
   uint8_t backup_page = mmu_page0_ro;
   zvb_map_peripheral(ZVB_PERI_SOUND_IDX);
@@ -743,6 +1011,7 @@ void zmt_sound_off(void) {
   zvb_map_peripheral(backup_page);
 }
 
+/* reset the sound system, setting volume */
 void zmt_reset(sound_volume_t vol) {
   uint8_t backup_page = mmu_page0_ro;
   zvb_map_peripheral(ZVB_PERI_SOUND_IDX);

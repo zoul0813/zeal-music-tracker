@@ -6,6 +6,9 @@
   "${env:ZOS_PATH}/kernel_headers/sdcc/include",
   "${env:ZGDK_PATH}/include",
 ],
+"C_Cpp.default.forcedInclude" : [
+  "${ZDE_PATH}/includes/vscode.h"
+],
 "files.associations": {
   "*.asm": "z80-macroasm",
   "stdint.h": "c",

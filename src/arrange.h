@@ -1,0 +1,10 @@
+#include <stdint.h>
+#ifndef ARRANGE_H
+#define ARRANGE_H
+
+void arrange_show(uint8_t index);
+void arrange_keypress_handler(unsigned char key);
+void arrange_current_step_handler(uint8_t current_step);
+
+
+#endif
