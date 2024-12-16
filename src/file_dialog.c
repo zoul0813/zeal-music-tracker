@@ -49,12 +49,13 @@ void file_dialog_show(file_dialog_t type) {
 
   err = kb_mode((void *)(KB_READ_NON_BLOCK | KB_MODE_RAW));
   handle_error(err, "init keyboard", 0);
-
   switch(type) {
     case FILE_SAVE: {
+      window_title(&win_FileDialog, "Saving...");
       err = zmt_file_save(&track, textbuff);
     } break;
     case FILE_LOAD: {
+      window_title(&win_FileDialog, "Loading...");
       err = zmt_file_load(&track, textbuff);
     } break;
   }

@@ -101,6 +101,7 @@ typedef struct {
 } window_t;
 
 void window(window_t* window);
+void window_title(window_t* window, const char *title);
 void window_gotox(window_t* window, uint8_t x);
 void window_gotoy(window_t* window, uint8_t y);
 void window_gotoxy(window_t* window, uint8_t x, uint8_t y);

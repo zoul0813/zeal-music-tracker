@@ -66,24 +66,6 @@ void window(window_t* window) {
     }
   }
 
-  if(window->title != NULL) {
-    /* Draw the window heading */
-    uint8_t len = strlen(window->title) + 4;
-
-    x = min_x + ((window->w - len) >> 1);
-    y = min_y;
-    SCR_TEXT[y][x] = '[';
-    SCR_TEXT[y][++x] = ' ';
-
-    for(int i = 0; i < SCREEN_COL80_WIDTH; i++) {
-      unsigned char c = window->title[i];
-      if(c == 0x00) break;
-      SCR_TEXT[y][++x] = c;
-    }
-    SCR_TEXT[y][++x] = ' ';
-    SCR_TEXT[y][++x] = ']';
-  }
-
   if((window->flags & WIN_SHADOW) > 0) {
     // draw the shadow
     // let's assume all shadows are black for now?
@@ -102,6 +84,30 @@ void window(window_t* window) {
     }
   }
   text_demap_vram();
+
+  window_title(window, window->title);
+}
+
+void window_title(window_t* window, const char *title) {
+  if(title != NULL) {
+    /* Draw the window heading */
+    uint8_t len = strlen(title) + 4;
+
+    uint8_t x = window->x + ((window->w - len) >> 1);
+    uint8_t y = window->y;
+    text_map_vram();
+    SCR_TEXT[y][x] = '[';
+    SCR_TEXT[y][++x] = ' ';
+
+    for(int i = 0; i < SCREEN_COL80_WIDTH; i++) {
+      unsigned char c = title[i];
+      if(c == 0x00) break;
+      SCR_TEXT[y][++x] = c;
+    }
+    SCR_TEXT[y][++x] = ' ';
+    SCR_TEXT[y][++x] = ']';
+    text_demap_vram();
+  }
 }
 
 void window_gotox(window_t* window, uint8_t x) {
