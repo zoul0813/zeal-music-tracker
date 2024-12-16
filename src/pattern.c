@@ -404,13 +404,14 @@ void pattern_keypress_handler(unsigned char key) {
       active_pattern = track.patterns[active_pattern_index];
       active_voice = &active_pattern->voices[active_voice_index];
       zmt_pattern_init(active_pattern);
-      pattern_refresh_steps();
-      pattern_color_step(active_step, PATTERN_WINDOW_HL1);
-      pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
 
       window_gotoxy(&win_Indicators, 0, 0);
       sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
       window_puts(&win_Indicators, textbuff);
+
+      pattern_refresh_steps();
+      pattern_color_step(active_step, PATTERN_WINDOW_HL1);
+      pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
     } break;
   }
 }

@@ -13,12 +13,14 @@
 #define PATTERN_WINDOW_HL1  TEXT_COLOR_CYAN
 #define PATTERN_WINDOW_HL2  TEXT_COLOR_YELLOW
 
+typedef void (*keypress_t)(unsigned char c);
+typedef void (*current_step_t)(uint8_t);
+typedef void (*callback_t)(void);
+
 extern track_t track;
 extern pattern_t* active_pattern;
 extern uint8_t active_pattern_index;
-
-typedef void (*keypress_t)(unsigned char c);
-typedef void (*current_step_t)(uint8_t);
+extern callback_t close_handler;
 
 extern char textbuff[SCREEN_COL80_WIDTH];
 

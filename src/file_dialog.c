@@ -58,6 +58,7 @@ void file_dialog_show(file_dialog_t type) {
       err = zmt_file_load(&track, textbuff);
     } break;
   }
-
   handle_error(err, "file open", 0);
+
+  if(close_handler != NULL) close_handler();
 }

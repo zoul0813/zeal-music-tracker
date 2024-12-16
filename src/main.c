@@ -11,6 +11,8 @@
 #include "pattern.h"
 #include "arrange.h"
 #include "file_dialog.h"
+#include "help_dialog.h"
+
 static zos_err_t err = ERR_SUCCESS;
 unsigned char key = 0;
 keypress_t keypress_handler;
@@ -19,6 +21,7 @@ uint8_t mmu_page_current;
 uint8_t playing = 0;
 uint8_t current_step = 0;
 uint8_t current_pattern = 0;
+callback_t close_handler = NULL;
 
 typedef enum {
   VIEW_ARRANGER,
@@ -42,19 +45,13 @@ window_t win_Main = {
   .bg = TEXT_COLOR_DARK_GRAY,
 };
 
-window_t win_Help = {
-  .x = SCREEN_COL80_WIDTH / 4,
-  .y = SCREEN_COL80_HEIGHT / 4,
-  .w = SCREEN_COL80_WIDTH / 2,
-  .h = SCREEN_COL80_HEIGHT / 2,
-  .flags = WIN_BORDER | WIN_SHADOW,
-  .fg = TEXT_COLOR_WHITE,
-  .bg = TEXT_COLOR_BROWN,
-  .title = "Help"
-};
-
-
 __sfr __banked __at(0x9d) vid_ctrl_status;
+
+void dialog_close(void);
+void view_switch(View view);
+void load_or_init_file(int argc, char** argv);
+void handle_keypress(char key);
+
 static inline void wait_vblank(void) {
   while((vid_ctrl_status & 2) == 0) { }
 }
@@ -76,8 +73,11 @@ void load_or_init_file(int argc, char** argv) {
   printf("Track: %.12s\n", track.title);
 }
 
+void dialog_close(void) {
+  view_switch(previous_view);
+}
+
 void view_switch(View view) {
-  previous_view = active_view;
   cursor(0);
   switch(view) {
     case VIEW_ARRANGER: {
@@ -93,26 +93,24 @@ void view_switch(View view) {
       pattern_show(current_pattern);
     } break;
     case VIEW_HELP: {
-      // move this into a view!
-      window(&win_Help);
-      window_puts(&win_Help, "Help Text\n");
-      window_puts(&win_Help, "Line 2\n");
-      window_puts(&win_Help, "Line 3\n");
-      window_puts(&win_Help, "Line 4\n");
-      window_puts(&win_Help, "Line 5\n");
-      window_puts(&win_Help, "Line 6\twith\ttabs\n");
-      window_puts(&win_Help, "Line 7a\twi\ttabs\n");
-      window_gotoxy(&win_Help, 0, 3);
-      window_clreol(&win_Help);
+      previous_view = active_view;
+      keypress_handler = &help_keypress_handler;
+      current_step_handler = NULL;
+      close_handler = &dialog_close;
+      help_dialog_show();
     } break;
     case VIEW_FILE_SAVE: {
+      previous_view = active_view;
       keypress_handler = NULL;
       current_step_handler = NULL;
+      close_handler = &dialog_close;
       file_dialog_show(FILE_SAVE);
     } break;
     case VIEW_FILE_LOAD: {
+      previous_view = active_view;
       keypress_handler = NULL;
       current_step_handler = NULL;
+      close_handler = &dialog_close;
       file_dialog_show(FILE_LOAD);
     }
   }
