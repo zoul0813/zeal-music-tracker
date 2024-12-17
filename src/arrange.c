@@ -29,6 +29,17 @@ window_t win_Arrange = {
   .bg = PATTERN_WINDOW_BG,
 };
 
+window_t win_Settings = {
+  .x = WINDOW_X,
+  .y = WINDOW_Y + WINDOW_H + 3,
+  .w = WINDOW_W,
+  .h = WINDOW_H,
+  .flags = WIN_BORDER | WIN_SHADOW,
+  .title = "Settings",
+  .fg = PATTERN_WINDOW_FG,
+  .bg = PATTERN_WINDOW_BG,
+};
+
 #define STEP_XY(step) \
   uint8_t x = (step % 8) * (ARRANGEMENT_LEN + 1); \
   uint8_t y = (step >> 3) + 1; \
@@ -155,6 +166,10 @@ void arrange_refresh_steps(void) {
 void arrange_show(uint8_t index) {
   index; // unreferenced, ignored???
   window(&win_Arrange);
+  window(&win_Settings);
+  sprintf(textbuff, "%03u", track.tempo);
+  window_puts(&win_Settings, "Tempo: ");
+  window_puts(&win_Settings, textbuff);
 
   arrange_refresh_steps();
   arrange_color_step(arrange_active_step, PATTERN_WINDOW_HL1);
@@ -174,6 +189,20 @@ void arrange_keypress_handler(unsigned char key) {
     } break;
     case KB_PG_UP: {
       arrange_update_cell(2);
+    } break;
+
+    /* Tempo */
+    case KB_KEY_R: {
+      if(track.tempo > 8); track.tempo -= 4;
+      sprintf(textbuff, "%03u", track.tempo);
+      window_gotoxy(&win_Settings, 7, 0);
+      window_puts(&win_Settings, textbuff);
+    } break;
+    case KB_KEY_T: {
+      if(track.tempo < 128) track.tempo += 4;
+      sprintf(textbuff, "%03u", track.tempo);
+      window_gotoxy(&win_Settings, 7, 0);
+      window_puts(&win_Settings, textbuff);
     } break;
 
     case KB_UP_ARROW: {

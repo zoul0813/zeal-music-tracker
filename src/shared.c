@@ -14,6 +14,15 @@ pattern_t pattern4;
 pattern_t pattern5;
 pattern_t pattern6;
 pattern_t pattern7;
+pattern_t pattern8;
+pattern_t pattern9;
+pattern_t patternA;
+pattern_t patternB;
+pattern_t patternC;
+pattern_t patternD;
+pattern_t patternE;
+pattern_t patternF;
+const size_t PATTERN_SIZE = sizeof(pattern_t);
 
 track_t track = {
   .title = "Track 1",
@@ -26,8 +35,17 @@ track_t track = {
     &pattern5,
     &pattern6,
     &pattern7,
+    &pattern8,
+    &pattern9,
+    &patternA,
+    &patternB,
+    &patternC,
+    &patternD,
+    &patternE,
+    &patternF,
   }
 };
+const size_t TRACK_SIZE = sizeof(track);
 
 pattern_t* active_pattern = NULL;
 uint8_t active_pattern_index = 0;

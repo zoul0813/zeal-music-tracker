@@ -37,6 +37,7 @@
  *** file header
  * "ZMT",0x00 - Header
  * "My Track    " - Title
+ * 0x20 - Tempo (32)
  * 0x02 - 2 Patterns
  *
  *** ARRANGEMENT
@@ -82,17 +83,20 @@
 
 #define STEPS_PER_PATTERN     32U
 #define NUM_VOICES            4U
-#define NUM_PATTERNS          8U
+#define NUM_PATTERNS          16U
 #define NUM_ARRANGEMENTS      64U
 #define TRACKER_TITLE_LEN     12U
 
-#define FRAMES_PER_QUARTER    (16U)
-#define FRAMES_PER_EIGTH      (FRAMES_PER_QUARTER >> 1)
-#define FRAMES_PER_SIXTEENTH  (FRAMES_PER_QUARTER >> 2)
-#define FRAMES_PER_STEP       (FRAMES_PER_SIXTEENTH)
+// #define FRAMES_PER_QUARTER    (16U)
+// #define FRAMES_PER_EIGTH      (FRAMES_PER_QUARTER >> 1)
+// #define FRAMES_PER_SIXTEENTH  (FRAMES_PER_QUARTER >> 2)
+// #define FRAMES_PER_STEP       (FRAMES_PER_SIXTEENTH)
+#define FRAMES_PER_QUARTER(tempo)   (temp)
+#define FRAMES_PER_EIGHT(tempo)     (tempo >> 1)
+#define FRAMES_PER_SIXTEENTH(tempo) (tempo >> 2)
+#define FRAMES_PER_STEP(tempo)      FRAMES_PER_SIXTEENTH(tempo)
 
 #define CH_PLAY   242U
-
 typedef enum {
   Cell_Frequency = 0,
   Cell_Waveform = 1,
@@ -235,12 +239,13 @@ typedef struct {
 typedef struct {
   char title[TRACKER_TITLE_LEN + 1];
   uint8_t pattern_count;
+  uint8_t tempo;
   arrangement_t arrangement[NUM_ARRANGEMENTS];
   pattern_t* patterns[NUM_PATTERNS];
 } track_t;
 
 /* Tick the playhead forward one frame, called every video frame */
-uint8_t zmt_tick(track_t *track, uint8_t use_arrangement, uint8_t *current_pattern, uint8_t *current_step);
+uint8_t zmt_tick(track_t *track, uint8_t use_arrangement);
 
 
 
@@ -286,6 +291,12 @@ void zmt_pattern_reset(pattern_t *pattern);
 /* Reset a track, zeroing out playback values and returning the current pattern index */
 uint8_t zmt_track_reset(track_t *track, uint8_t reset_pattern);
 
+
+uint8_t zmt_track_get_arrangement(track_t *track);
+uint8_t zmt_track_get_pattern(track_t *track);
+uint8_t zmt_track_get_next_step(track_t *track);
+uint8_t zmt_track_get_last_step(track_t *track);
+uint8_t zmt_track_get_frame(track_t *track);
 
 
 /* sound off */

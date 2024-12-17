@@ -41,9 +41,8 @@ void file_dialog_show(file_dialog_t type) {
   sprintf(textbuff, "            ");
   err = read(DEV_STDIN, textbuff, &size);
   handle_error(err, "keyboard read", 0);
-  if(textbuff[size-1] == CH_NEWLINE) {
-    textbuff[size-1] = 0x00;
-  }
+  textbuff[size-1] = 0x00;
+
   sprintf(textbuff, "%.12s", textbuff);
   cursor(0);
 

@@ -279,11 +279,11 @@ note_name_t NOTE_NAMES[] = {
 
 
 /* Tick the playhead forward one frame, called every video frame */
-uint8_t zmt_tick(track_t *track, uint8_t use_arrangement, uint8_t *_current_pattern, uint8_t *_current_step) {
+uint8_t zmt_tick(track_t *track, uint8_t use_arrangement) {
   pattern_t *pattern = track->patterns[current_pattern];
-  if(frames > FRAMES_PER_QUARTER) frames = 0;
+  if(frames > track->tempo) frames = 0;
   // if(frames % FRAMES_PER_EIGTH == 0) { }
-  if(frames % FRAMES_PER_SIXTEENTH == 0) {
+  if(frames % FRAMES_PER_SIXTEENTH(track->tempo) == 0) {
     last_step = next_step;
     zmt_play_pattern(pattern, next_step);
 
@@ -357,12 +357,29 @@ uint8_t zmt_tick(track_t *track, uint8_t use_arrangement, uint8_t *_current_patt
   }
   frames++;
 
-  *_current_pattern = current_pattern;
-  *_current_step = last_step;
-
   return next_step;
 }
 
+uint8_t zmt_track_get_arrangement(track_t *track) {
+  track; // unreferenced
+  return current_arrangement;
+}
+uint8_t zmt_track_get_pattern(track_t *track) {
+  track; // unreferenced
+  return current_pattern;
+}
+uint8_t zmt_track_get_next_step(track_t *track) {
+  track; // unreferenced
+  return next_step;
+}
+uint8_t zmt_track_get_last_step(track_t *track) {
+  track; // unreferenced
+  return last_step;
+}
+uint8_t zmt_track_get_frame(track_t *track) {
+  track; // unreferenced
+  return frames;
+}
 
 
 void zmt_process_fx(step_t *step, fx_t fx, sound_voice_t voice) {
@@ -802,6 +819,13 @@ zos_err_t zmt_file_load(track_t *track, const char *filename) {
   // printf("Track: %12s (read: %d)\n", track->title, size);
 
   size = sizeof(uint8_t);
+  err = read(file_dev, &track->tempo, &size);
+  if(err != ERR_SUCCESS) {
+    printf("error reading tempo, %d (%02x)\n", err, err);
+    return err;
+  }
+
+  size = sizeof(uint8_t);
   err = read(file_dev, &track->pattern_count, &size); // pattern count
   if(err != ERR_SUCCESS) {
     printf("error reading pattern count, %d (%02x)\n", err, err);
@@ -862,6 +886,13 @@ zos_err_t zmt_file_save(track_t *track, const char *filename) {
   err = write(file_dev, textbuff, &size); // track title
   if(err != ERR_SUCCESS) {
     printf("error saving title length, %d (%02x)\n", err, err);
+    return err;
+  }
+
+  size = sizeof(uint8_t);
+  err = write(file_dev, &track->tempo, &size);
+  if(err != ERR_SUCCESS) {
+    printf("error saving tempo, %d (%02x)\n", err, err);
     return err;
   }
 
@@ -964,6 +995,7 @@ void zmt_arrangement_init(arrangement_t arrangement[NUM_ARRANGEMENTS]) {
 void zmt_track_init(track_t *track) {
   memcpy(track->title, "New Track", 9);
   track->pattern_count = 1;
+  track->tempo = 32;
   current_pattern = 0;
   zmt_arrangement_init(track->arrangement);
   zmt_pattern_init(track->patterns[current_pattern]);

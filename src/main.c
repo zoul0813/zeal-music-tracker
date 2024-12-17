@@ -21,6 +21,7 @@ uint8_t mmu_page_current;
 uint8_t playing = 0;
 uint8_t current_step = 0;
 uint8_t current_pattern = 0;
+uint8_t current_arrangement = 0;
 callback_t close_handler = NULL;
 
 typedef enum {
@@ -112,7 +113,7 @@ void view_switch(View view) {
       current_step_handler = NULL;
       close_handler = &dialog_close;
       file_dialog_show(FILE_LOAD);
-    }
+    } break;
   }
   active_view = view;
 }
@@ -191,7 +192,10 @@ int main(int argc, char** argv) {
     handle_keypress(key);
     if(playing) {
       wait_vblank();
-      zmt_tick(&track, active_view == VIEW_ARRANGER, &current_pattern, &current_step);
+      zmt_tick(&track, active_view == VIEW_ARRANGER);
+      current_pattern = zmt_track_get_pattern(&track);
+      current_step = zmt_track_get_last_step(&track);
+      current_arrangement = zmt_track_get_arrangement(&track);
       wait_end_vblank();
       if(current_step_handler != NULL) {
         current_step_handler(current_step);
