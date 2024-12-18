@@ -132,15 +132,12 @@ void pattern_update_cell(voice_t* voice, int8_t amount)
 
 void pattern_color_step(uint8_t step_index, uint8_t color)
 {
-    uint8_t x1 = windows[0]->x + 2;
-    uint8_t x2 = windows[1]->x + 2;
-    uint8_t x3 = windows[2]->x + 2;
-    uint8_t x4 = windows[3]->x + 2;
-
-    uint8_t y  = windows[0]->y + 1 + step_index + 1;
-    uint8_t bg = windows[0]->bg;
-
-    uint8_t clr = (bg << 4) | (color & 0x0F);
+    uint8_t x1  = windows[0]->x + 2;
+    uint8_t x2  = windows[1]->x + 2;
+    uint8_t x3  = windows[2]->x + 2;
+    uint8_t x4  = windows[3]->x + 2;
+    uint8_t y   = windows[0]->y + 1 + step_index + 1;
+    uint8_t clr = COLOR(color, windows[0]->bg); //(bg << 4) | (color & 0x0F);
 
     text_map_vram();
     // MAGIC: 12 = magic length of the step text :)

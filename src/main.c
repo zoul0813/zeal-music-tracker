@@ -17,6 +17,7 @@ static zos_err_t err = ERR_SUCCESS;
 unsigned char key    = 0;
 keypress_t keypress_handler;
 current_step_t current_step_handler;
+current_step_t current_arrangement_handler;
 uint8_t mmu_page_current;
 uint8_t playing             = 0;
 uint8_t current_step        = 0;
@@ -25,15 +26,14 @@ uint8_t current_arrangement = 0;
 callback_t close_handler    = NULL;
 
 typedef enum {
-    VIEW_ARRANGER,
-    VIEW_PATTERN,
-    VIEW_HELP,
-    VIEW_FILE_SAVE,
-    VIEW_FILE_LOAD,
+    VIEW_ARRANGER,  /* 0 */
+    VIEW_PATTERN,   /* 1 */
+    VIEW_HELP,      /* 2 */
+    VIEW_FILE_SAVE, /* 3 */
+    VIEW_FILE_LOAD, /* 4 */
 } View;
 
-View active_view   = VIEW_PATTERN;
-View previous_view = VIEW_PATTERN;
+View active_view, previous_view;
 
 window_t win_Main = {
     .x     = 0,
@@ -79,48 +79,50 @@ void load_or_init_file(int argc, char** argv)
 
 void dialog_close(void)
 {
-    view_switch(previous_view);
+    view_switch(active_view);
 }
 
 void view_switch(View view)
 {
-    cursor(0);
     switch (view) {
         case VIEW_ARRANGER: {
+            active_view = view;
             window_clrscr(&win_Main);
-            keypress_handler     = &arrange_keypress_handler;
-            current_step_handler = &arrange_current_step_handler;
+            keypress_handler            = &arrange_keypress_handler;
+            current_step_handler        = NULL;
+            current_arrangement_handler = &arrange_current_arrangement_handler;
             arrange_show(0);
         } break;
         case VIEW_PATTERN: {
+            active_view = view;
             window_clrscr(&win_Main);
-            keypress_handler     = &pattern_keypress_handler;
-            current_step_handler = &pattern_current_step_handler;
+            keypress_handler            = &pattern_keypress_handler;
+            current_step_handler        = &pattern_current_step_handler;
+            current_arrangement_handler = NULL;
             pattern_show(current_pattern);
         } break;
         case VIEW_HELP: {
-            previous_view        = active_view;
-            keypress_handler     = &help_keypress_handler;
-            current_step_handler = NULL;
-            close_handler        = &dialog_close;
+            keypress_handler            = &help_keypress_handler;
+            current_step_handler        = NULL;
+            current_arrangement_handler = NULL;
+            close_handler               = &dialog_close;
             help_dialog_show();
         } break;
         case VIEW_FILE_SAVE: {
-            previous_view        = active_view;
-            keypress_handler     = NULL;
-            current_step_handler = NULL;
-            close_handler        = &dialog_close;
+            keypress_handler            = NULL;
+            current_step_handler        = NULL;
+            current_arrangement_handler = NULL;
+            close_handler               = &dialog_close;
             file_dialog_show(FILE_SAVE);
         } break;
         case VIEW_FILE_LOAD: {
-            previous_view        = active_view;
-            keypress_handler     = NULL;
-            current_step_handler = NULL;
-            close_handler        = &dialog_close;
+            keypress_handler            = NULL;
+            current_step_handler        = NULL;
+            current_arrangement_handler = NULL;
+            close_handler               = &dialog_close;
             file_dialog_show(FILE_LOAD);
         } break;
     }
-    active_view = view;
 }
 
 void handle_keypress(char key)
@@ -192,6 +194,7 @@ int main(int argc, char** argv)
     // initialize everything
     current_pattern = 0;
     view_switch(VIEW_ARRANGER);
+    previous_view = active_view;
 
     // main loop
     while (1) {
@@ -207,11 +210,22 @@ int main(int argc, char** argv)
             if (current_step_handler != NULL) {
                 current_step_handler(current_step);
             }
+            if (current_arrangement_handler != NULL) {
+                current_arrangement_handler(current_arrangement);
+            }
 
             // print the playhead
-            sprintf(textbuff, "%02X %02X", current_pattern, current_step);
+            sprintf(textbuff, "%02X %02X %03d", current_pattern, current_step, track.current_tempo);
             // window_gotoxy(&win_Main, 0, 0);
             // window_puts(&win_Main, textbuff);
+            text_map_vram();
+            setcolor(TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
+            cursor_xy(1, 1);
+            print(textbuff);
+            text_demap_vram();
+        } else {
+            // print the active,previous view
+            sprintf(textbuff, "%02d %02d", active_view, previous_view);
             text_map_vram();
             setcolor(TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
             cursor_xy(1, 1);

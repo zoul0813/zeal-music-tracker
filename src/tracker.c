@@ -279,10 +279,10 @@ note_name_t NOTE_NAMES[] = {
 uint8_t zmt_tick(track_t* track, uint8_t use_arrangement)
 {
     pattern_t* pattern = track->patterns[current_pattern];
-    if (frames > track->tempo)
+    if (frames > track->current_tempo)
         frames = 0;
     // if(frames % FRAMES_PER_EIGTH == 0) { }
-    if (frames % FRAMES_PER_SIXTEENTH(track->tempo) == 0) {
+    if (frames % FRAMES_PER_SIXTEENTH(track->current_tempo) == 0) {
         last_step = next_step;
         zmt_play_pattern(pattern, next_step);
 
@@ -290,69 +290,14 @@ uint8_t zmt_tick(track_t* track, uint8_t use_arrangement)
         if (next_step >= STEPS_PER_PATTERN) {
             if (use_arrangement) {
                 current_arrangement++;
-                arrangement_t* a = &track->arrangement[current_arrangement];
-                if (a->pattern_index == ARRANGEMENT_OUT_OF_RANGE) {
-                    current_arrangement = 0; // reset
-                    a                   = &track->arrangement[current_arrangement];
+                arrangement_t* arrangement = &track->arrangement[current_arrangement];
+                if (arrangement->pattern_index == ARRANGEMENT_OUT_OF_RANGE) {
+                    // reset
+                    current_arrangement = 0;
+                    arrangement         = &track->arrangement[current_arrangement];
                 }
-
-                // Check arrangement FX ...
-                switch (a->fx) {
-                    case FX_OUT_OF_RANGE: {
-                    } break;
-                    // goto 0-32
-                    case 0x00: // fall thru
-                    case 0x01: // fall thru
-                    case 0x02: // fall thru
-                    case 0x03: // fall thru
-                    case 0x04: // fall thru
-                    case 0x05: // fall thru
-                    case 0x06: // fall thru
-                    case 0x07: // fall thru
-                    case 0x08: // fall thru
-                    case 0x09: // fall thru
-                    case 0x0A: // fall thru
-                    case 0x0B: // fall thru
-                    case 0x0C: // fall thru
-                    case 0x0D: // fall thru
-                    case 0x0E: // fall thru
-                    case 0x0F: // fall thru
-                    case 0x10: // fall thru
-                    case 0x11: // fall thru
-                    case 0x12: // fall thru
-                    case 0x13: // fall thru
-                    case 0x14: // fall thru
-                    case 0x15: // fall thru
-                    case 0x16: // fall thru
-                    case 0x17: // fall thru
-                    case 0x18: // fall thru
-                    case 0x19: // fall thru
-                    case 0x1A: // fall thru
-                    case 0x1B: // fall thru
-                    case 0x1C: // fall thru
-                    case 0x1D: // fall thru
-                    case 0x1E: // fall thru
-                    case 0x1F: {
-                    } break;
-
-                    // transpose
-                    case 0xD0: // fall thru
-                    case 0xD1: // fall thru
-                    case 0xD2: // fall thru
-                    case 0xD3: // fall thru
-                    case 0xD4: // fall thru
-                    case 0xD5: // fall thru
-                    case 0xD6: // fall thru
-                    case 0xD7: // fall thru
-                    case 0xD8: // fall thru
-                    case 0xD9: // fall thru
-                    case 0xDA: // fall thru
-                    case 0xDB: // fall thru
-                    case 0xDC: {
-                    } break;
-                }
-
-                current_pattern = a->pattern_index;
+                zmt_process_arrangement_fx(track, arrangement);
+                current_pattern = arrangement->pattern_index;
             }
             next_step = 0;
         }
@@ -388,13 +333,40 @@ uint8_t zmt_track_get_frame(track_t* track)
     return frames;
 }
 
+void zmt_process_arrangement_fx(track_t* track, arrangement_t* arrangement)
+{
+    // NOTE: watch out for EVELYN, consecutive comparisons should account for logic
+    // Check arrangement FX ...
+    uint8_t value = arrangement->fx;
+    if (LESSTHAN(value, 0x1F)) {
+        current_arrangement = value;
+        return;
+    }
+    if (LESSTHAN(value, 0x3F)) {
+        value                = ((arrangement->fx - 0x20) + 1) * 4;
+        track->current_tempo = value;
+        return;
+    }
+    if (RANGE(value, 0xD0, 0xDC)) {
+        value = (arrangement->fx - 0xD0);
+        return;
+    }
+}
 
 void zmt_process_fx(step_t* step, fx_t fx, sound_voice_t voice)
 {
     (void*) voice; // TODO: per channel effects
     // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
 
-    if ((fx >= FX_GOTO_0) && (fx <= FX_GOTO_31)) {
+    if (RANGE(fx, FX_COUNT_0, FX_COUNT_8)) {
+        if (step->fx1_attr == 0x00)
+            step->fx1_attr = (fx - 0xC0);
+        else
+            step->fx1_attr--;
+        return;
+    }
+
+    if(RANGE(fx, FX_GOTO_0, FX_GOTO_31)) {
         next_step = (fx - FX_GOTO_0) - 1;
         frames    = (next_step % 16) - 1; // TODO: yeah?
         return;
@@ -411,21 +383,6 @@ void zmt_process_fx(step_t* step, fx_t fx, sound_voice_t voice)
         case FX_VOICE_SAW: // fall thru
         case FX_VOICE_NOISE: {
             SOUND_WAVE(fx);
-        } break;
-
-        case FX_COUNT_0: // fall thru
-        case FX_COUNT_1: // fall thru
-        case FX_COUNT_2: // fall thru
-        case FX_COUNT_3: // fall thru
-        case FX_COUNT_4: // fall thru
-        case FX_COUNT_5: // fall thru
-        case FX_COUNT_6: // fall thru
-        case FX_COUNT_7: // fall thru
-        case FX_COUNT_8: {
-            if (step->fx1_attr == 0x00)
-                step->fx1_attr = (fx - 0xC0);
-            else
-                step->fx1_attr--;
         } break;
 
         // TODO: per channel volume control?
@@ -864,6 +821,8 @@ zos_err_t zmt_file_load(track_t* track, const char* filename)
         return err;
     }
 
+    track->current_tempo = track->tempo;
+
     size = sizeof(uint8_t);
     err  = read(file_dev, &track->pattern_count, &size); // pattern count
     if (err != ERR_SUCCESS) {
@@ -1049,6 +1008,7 @@ void zmt_track_init(track_t* track)
     memcpy(track->title, "New Track", 9);
     track->pattern_count = 1;
     track->tempo         = 32;
+    track->current_tempo = track->tempo;
     current_pattern      = 0;
     zmt_arrangement_init(track->arrangement);
     zmt_pattern_init(track->patterns[current_pattern]);
@@ -1072,6 +1032,7 @@ void zmt_pattern_reset(pattern_t* pattern)
 /* Reset a track, zeroing out playback values*/
 uint8_t zmt_track_reset(track_t* track, uint8_t reset_pattern)
 {
+    track->current_tempo = track->tempo;
     if (reset_pattern) {
         current_arrangement = 0;
         arrangement_t* a    = &track->arrangement[0];
@@ -1080,6 +1041,7 @@ uint8_t zmt_track_reset(track_t* track, uint8_t reset_pattern)
         } else {
             current_pattern = 0;
         }
+        zmt_process_arrangement_fx(track, a);
     }
     frames             = 0;
     next_step          = 0;

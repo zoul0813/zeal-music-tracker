@@ -40,11 +40,11 @@ window_t win_Settings = {
     .bg    = PATTERN_WINDOW_BG,
 };
 
-#define STEP_XY(step)                               \
-    uint8_t x = (step % 8) * (ARRANGEMENT_LEN + 1); \
-    uint8_t y = (step >> 3) + 1;                    \
-    x += win_Arrange.x + 2;                         \
-    y += win_Arrange.y + 1;
+#define STEP_XY(step)                                \
+    uint8_t x  = (step % 8) * (ARRANGEMENT_LEN + 1); \
+    uint8_t y  = (step >> 3) + 1;                    \
+    x         += win_Arrange.x + 2;                  \
+    y         += win_Arrange.y + 1;
 
 void arrange_refresh_step(uint8_t step_index)
 {
@@ -108,8 +108,8 @@ void arrange_update_cell(int8_t amount)
             }
         } break;
         case Cell_Effect: {
-            x += 2;
-            width = 2;
+            x     += 2;
+            width  = 2;
             if (a->fx == FX_OUT_OF_RANGE) {
                 sprintf(textbuff, "--");
             } else {
@@ -132,8 +132,8 @@ void arrange_color_cell(uint8_t step_index, uint8_t cell_index, uint8_t color)
 
     switch (cell_index) {
         case Cell_Effect: {
-            x += 2;
-            width = 2;
+            x     += 2;
+            width  = 2;
         } break;
     }
     text_map_vram();
@@ -148,9 +148,9 @@ void arrange_color_step(uint8_t step_index, uint8_t color)
     STEP_XY(step_index);
 
     text_map_vram();
-    SCR_COLOR[y][x]     = COLOR(color, PATTERN_WINDOW_BG);
-    SCR_COLOR[y][x + 2] = COLOR(color, PATTERN_WINDOW_BG);
-    SCR_COLOR[y][x + 3] = COLOR(color, PATTERN_WINDOW_BG);
+    SCR_COLOR[y][x]     = color;
+    SCR_COLOR[y][x + 2] = color;
+    SCR_COLOR[y][x + 3] = color;
     text_demap_vram();
 }
 
@@ -181,7 +181,7 @@ void arrange_show(uint8_t index)
     window_puts(&win_Settings, textbuff);
 
     arrange_refresh_steps();
-    arrange_color_step(arrange_active_step, PATTERN_WINDOW_HL1);
+    arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_HL1, win_Arrange.bg));
     arrange_color_cell(arrange_active_step, arrange_active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
 }
 
@@ -219,32 +219,33 @@ void arrange_keypress_handler(unsigned char key)
         } break;
 
         case KB_UP_ARROW: {
-            arrange_color_step(arrange_active_step, PATTERN_WINDOW_FG);
-            if (arrange_active_step > 0)
+            arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_FG, win_Arrange.bg));
+            if (arrange_active_step > 0) {
                 arrange_active_step--;
-            else
+            } else {
                 arrange_active_step = (NUM_ARRANGEMENTS - 1);
-            arrange_color_step(arrange_active_step, PATTERN_WINDOW_HL1);
+            }
+            arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_HL1, win_Arrange.bg));
             arrange_color_cell(arrange_active_step, arrange_active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
         case KB_DOWN_ARROW: {
-            arrange_color_step(arrange_active_step, PATTERN_WINDOW_FG);
+            arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_FG, win_Arrange.bg));
             arrange_active_step++;
             if (arrange_active_step > (NUM_ARRANGEMENTS - 1))
                 arrange_active_step = 0;
-            arrange_color_step(arrange_active_step, PATTERN_WINDOW_HL1);
+            arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_HL1, win_Arrange.bg));
             arrange_color_cell(arrange_active_step, arrange_active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
         case KB_HOME: {
-            arrange_color_step(arrange_active_step, PATTERN_WINDOW_FG);
+            arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_FG, win_Arrange.bg));
             arrange_active_step = 0;
-            arrange_color_step(arrange_active_step, PATTERN_WINDOW_HL1);
+            arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_HL1, win_Arrange.bg));
             arrange_color_cell(arrange_active_step, arrange_active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
         case KB_END: {
-            arrange_color_step(arrange_active_step, PATTERN_WINDOW_FG);
+            arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_FG, win_Arrange.bg));
             arrange_active_step = NUM_ARRANGEMENTS - 1;
-            arrange_color_step(arrange_active_step, PATTERN_WINDOW_HL1);
+            arrange_color_step(arrange_active_step, COLOR(PATTERN_WINDOW_HL1, win_Arrange.bg));
             arrange_color_cell(arrange_active_step, arrange_active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
 
@@ -262,4 +263,15 @@ void arrange_current_step_handler(uint8_t current_step)
 {
     current_step; // unreferenced
                   // do nothing
+}
+
+void arrange_current_arrangement_handler(uint8_t current_arragement)
+{
+    if (arrange_previous_step == arrange_active_step) {
+        arrange_color_step(arrange_previous_step, COLOR(PATTERN_WINDOW_HL1, win_Arrange.bg));
+    } else {
+        arrange_color_step(arrange_previous_step, COLOR(win_Arrange.fg, win_Arrange.bg));
+    }
+    arrange_color_step(current_arragement, COLOR(PATTERN_WINDOW_HL2, win_Arrange.bg));
+    arrange_previous_step = current_arragement;
 }

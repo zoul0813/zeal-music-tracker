@@ -28,6 +28,11 @@
     "mutex": "c",
     "source_location": "cpp",
     "complex": "c",
-    "format": "c"
-  }
+    "format": "c",
+    "limits": "c",
+    "ratio": "c",
+    "semaphore": "c",
+    "algorithm": "c",
+    "chrono": "c"
+}
 }

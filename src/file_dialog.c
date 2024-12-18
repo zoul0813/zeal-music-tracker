@@ -29,7 +29,6 @@ void file_dialog_show(file_dialog_t type)
             win_FileDialog.title = "Load From";
         } break;
     }
-    win_FileDialog.title = "Load From";
     window(&win_FileDialog);
     window_puts(&win_FileDialog, "\n  Filename: [\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9]");
     cursor_xy(win_FileDialog.x + 14, win_FileDialog.y + 2);
@@ -61,6 +60,7 @@ void file_dialog_show(file_dialog_t type)
     }
     handle_error(err, "file open", 0);
 
-    if (close_handler != NULL)
+    if (close_handler != NULL) {
         close_handler();
+    }
 }

@@ -3,7 +3,12 @@ Language:        Cpp
 AlignAfterOpenBracket: Align
 AlignArrayOfStructures: Right
 AlignConsecutiveMacros: Consecutive
-AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveAssignments:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+  AlignCompound: true
+  PadOperators: true
 AlignConsecutiveBitFields: Consecutive
 AlignConsecutiveDeclarations: None
 AlignEscapedNewlines: Left

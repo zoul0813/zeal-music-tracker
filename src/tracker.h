@@ -91,6 +91,9 @@
 #define FRAMES_PER_EIGHT(tempo)     (tempo >> 1)
 #define FRAMES_PER_SIXTEENTH(tempo) (tempo >> 2)
 #define FRAMES_PER_STEP(tempo)      FRAMES_PER_SIXTEENTH(tempo)
+#define LESSTHAN(val, max)          (val <= max)
+#define GREATERTHAN(val, min)       (val >= min)
+#define RANGE(val, min, max)        ((val >= min) && (val <= max))
 
 #define CH_PLAY 242U
 
@@ -237,6 +240,7 @@ typedef struct {
         char title[TRACKER_TITLE_LEN + 1];
         uint8_t pattern_count;
         uint8_t tempo;
+        uint8_t current_tempo;
         arrangement_t arrangement[NUM_ARRANGEMENTS];
         pattern_t* patterns[NUM_PATTERNS];
 } track_t;
@@ -260,7 +264,7 @@ zos_err_t zmt_file_load(track_t* track, const char* filename);
 zos_err_t zmt_file_save(track_t* track, const char* filename);
 
 
-
+void zmt_process_arrangement_fx(track_t* track, arrangement_t* arrangement);
 void zmt_process_fx(step_t* step, fx_t fx, sound_voice_t voice);
 void zmt_play_step(step_t* step, sound_voice_t voice);
 void zmt_play_pattern(pattern_t* pattern, uint8_t step_index);
