@@ -1,36 +1,61 @@
 # Zeal Music Tracker
 
-![image](https://github.com/user-attachments/assets/037b90cb-6120-4811-a9e0-d5cbb51b845d)
+## Arrangement View
+
+![image](https://github.com/user-attachments/assets/c508b9b5-fa36-4935-9f4a-cd5369c775db)
+
+### Tempo
+
+This is expressed as "Frames per Quarter Note" (FPQ), the lowest value is "4", to represent the 4 steps per quarter (1/6th notes).
+
+Tempo is adjusted in increments of 4.
+
+A single frame is ~16.66ms (vsync).  At 32 FPQ, each quarter will take (32 * 16.66ms) or ~533.12ms.
+
+You can then calculate BPM with (60,000 / 533.12) to get roughly 112.545BPM
+
+Lower tempos are faster - 16 FPQ is roughly 224BPM
+
+## Pattern View
+
+![image](https://github.com/user-attachments/assets/4ae0d87b-3bf1-4703-ae4c-64cea9567ace)
+
+## Inline Help
+
+![image](https://github.com/user-attachments/assets/66b183bc-b3f7-439a-849f-b8fb31d5b4bb)
+
 
 ## Controls
 
-Refer to on-screen controls
-
-* S - Save File
-* L - Load File
-* Space - Play/Stop
-* Esc - Quit
-* H - Inline Help
-* P - Pattern View
-* A - Arrangement View
+* <kbd>S</kbd> - Save File
+* <kbd>L</kbd> - Load File
+* <kbd>Space</kbd> - Play/Stop
+* <kbd>Esc</kbd> - Quit
+* <kbd>H</kbd> - Inline Help
+* <kbd>P</kbd> - Pattern View
+* <kbd>A</kbd> - Arrangement View
 
 ### All Views
 
-* Up/Down - Next Step
-* Home/End - First/Last Step
-* Left/Right - Adjust Step
-* PgUp/PgDown - Adjust Step Plus
-* Ins - Duplicate Last Step
-* Del - Delete Step
-* Tab - Next Cell
+* <kbd>Up</kbd>/<kbd>Down</kbd> - Next Step
+* <kbd>Home</kbd>/<kbd>End</kbd> - First/Last Step
+* <kbd>Left</kbd>/<kbd>Right</kbd> - Adjust Step
+* <kbd>PgUp</kbd>/<kbd>PgDown</kbd> - Adjust Step Plus
+* <kbd>Ins</kbd> - Duplicate Last Step
+* <kbd>Del</kbd> - Delete Step
+* <kbd>Tab</kbd> - Next Cell
 
 ### Arrangement View
 
+* <kbd>R</kbd>,<kbd>T</kbd> - Tempo -/+
+
 ### Pattern View
 
-* 1-4 - Voice 1-4
-* [/] - Prev/Next Pattern
-* N - New Pattern
+* <kbd>1</kbd>-<kbd>4</kbd> - Voice 1-4
+* <kbd>[</kbd>/<kbd>]</kbd> - Prev/Next Pattern
+* <kbd>N</kbd> - New Pattern
+
+## FX Codes
 
 ### Arrangement FX
 
@@ -49,6 +74,3 @@ Refer to on-screen controls
 * [X] 0xC0-0xC8 - Countdown (value - 0xC0)
 * [X] 0xD0-0xEF - Goto Step (value - 0xD0)
 * [X] 0xF0-0xF8 - Volume (0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100)
-
-## Assets
-
