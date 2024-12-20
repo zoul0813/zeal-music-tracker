@@ -22,7 +22,7 @@ window_t win_Help = {
     .title = "Help",
 };
 
-void help_dialog_show(void)
+void help_dialog_show(View view)
 {
     window(&win_Help);
     window_puts_color(&win_Help, " General\n", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
@@ -43,22 +43,34 @@ void help_dialog_show(void)
     window_puts(&win_Help, " \xF9 Del - Delete Step\n");
     window_puts(&win_Help, " \xF9 Tab - Next Cell\n");
     window_puts(&win_Help, "\n");
-    // window_puts(&win_Help, " Arrangement View\n");
-    window_puts_color(&win_Help, " Pattern View\n", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
-    window_puts(&win_Help, " \xF9 1-4 - Voice 1-4\n");
-    window_puts(&win_Help, " \xF9 [/] - Prev/Next Pattern\n");
-    window_puts(&win_Help, " \xF9 N - New Pattern\n");
+
+    switch (view) {
+        case VIEW_ARRANGER: {
+            window_puts_color(&win_Help, " Arrangement\n", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
+            window_puts(&win_Help, " \xF9 R,T - Tempo +/-\n");
+        } break;
+        case VIEW_PATTERN: {
+            window_puts_color(&win_Help, " Pattern\n", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
+            window_puts(&win_Help, " \xF9 1-4 - Voice 1-4\n");
+            window_puts(&win_Help, " \xF9 [/] - Prev/Next Pattern\n");
+            window_puts(&win_Help, " \xF9 N - New Pattern\n");
+        } break;
+    }
 
     window_gotoxy(&win_Help, (win_Help.w - 18) / 2, win_Help.h - 2);
     window_puts_color(&win_Help, "[ Enter to Close ]", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
 }
 
-void help_keypress_handler(unsigned char key)
+uint8_t help_keypress_handler(unsigned char key)
 {
     switch (key) {
         case KB_KEY_ENTER: {
             if (close_handler != NULL)
                 close_handler();
         } break;
+        default: {
+            return 0; // unhandled
+        }
     }
+    return 1;
 }

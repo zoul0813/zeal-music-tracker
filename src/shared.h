@@ -13,14 +13,29 @@
 #define PATTERN_WINDOW_HL1 TEXT_COLOR_CYAN
 #define PATTERN_WINDOW_HL2 TEXT_COLOR_YELLOW
 
-typedef void (*keypress_t)(unsigned char c);
+#define DEFAULT_CURSOR_BLINK 30
+
+typedef uint8_t (*keypress_t)(unsigned char c);
 typedef void (*current_step_t)(uint8_t);
 typedef void (*callback_t)(void);
+typedef int (*confirm_t)(uint8_t);
+
+typedef enum {
+    VIEW_ARRANGER,  /* 0 */
+    VIEW_PATTERN,   /* 1 */
+    VIEW_HELP,      /* 2 */
+    VIEW_FILE_SAVE, /* 3 */
+    VIEW_FILE_LOAD, /* 4 */
+    VIEW_QUIT,      /* 5 */
+} View;
 
 extern track_t track;
 extern pattern_t* active_pattern;
 extern uint8_t active_pattern_index;
 extern callback_t close_handler;
+extern confirm_t confirm_handler;
+
+extern uint8_t dirty_track;
 
 extern char textbuff[SCREEN_COL80_WIDTH];
 

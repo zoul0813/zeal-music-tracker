@@ -278,25 +278,39 @@ void _text_banner(uint8_t x, uint8_t y, uint8_t centered, window_t* window, cons
 
     // invert the colors
     SET_COLORS(bg, fg);
-    // SET_COLOR(fg | bg);
 
-    uint8_t len = width;
+    uint8_t len = 0;
+    uint8_t total_len = width;
     for (uint8_t i = 0; i < width; i++) {
-        if (s[i] == 0x00) {
-            len = i;
-            break;
+        switch(s[i]) {
+            case '[': {
+                i++;
+                if(i >= width) {
+                    total_len = i - 1;
+                    goto end_length;
+                }
+            } break;
+            case ']': break; // skip it
+            case 0x00: {
+                total_len = i;
+                goto end_length;
+            } break;
+            default: {
+                len++;
+            } break;
         }
     }
+end_length:
 
     char pad = 0;
     if (len > 0) {
         SET_XY(x, y);
         if (centered) {
             pad = (width - len);
-            if ((pad % 2) == 0) {
-                pad = pad >> 1;
-            } else {
-                pad = (pad >> 1) - 1;
+            pad = pad >> 1;
+            if ((pad % 2) != 0) {
+                // shift over, center is "left aligned" on odd
+                pad -= 1;
             }
         }
 
@@ -304,8 +318,22 @@ void _text_banner(uint8_t x, uint8_t y, uint8_t centered, window_t* window, cons
             PRINT_CHAR(' ');
         }
 
-        for (uint8_t i = 0; i < len; i++) {
-            PRINT_CHAR(s[i]);
+        for (uint8_t i = 0; i < total_len; i++) {
+            const char c = s[i];
+            switch(c) {
+                case '[': {
+                    i++;
+                    if(i < total_len) {
+                        SET_COLOR(s[i]);
+                    }
+                } break;
+                case ']': {
+                    SET_COLORS(bg, fg);
+                } break;
+                default: {
+                    PRINT_CHAR(s[i]);
+                }
+            }
         }
 
         for (uint8_t i = 0; i < (width - len - pad); i++) {

@@ -33,6 +33,7 @@
     "ratio": "c",
     "semaphore": "c",
     "algorithm": "c",
-    "chrono": "c"
+    "chrono": "c",
+    "cstdint": "cpp"
 }
 }

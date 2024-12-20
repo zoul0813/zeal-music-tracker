@@ -71,6 +71,7 @@ void pattern_update_cell(voice_t* voice, int8_t amount)
 {
     step_t* step = &voice->steps[active_step];
     window_t* w  = windows[active_voice_index];
+    dirty_track = 1;
     switch (active_cell) {
         case Cell_Frequency:
             if (amount > 1)
@@ -272,7 +273,7 @@ void pattern_current_step_handler(uint8_t current_step)
     previous_step = current_step;
 }
 
-void pattern_keypress_handler(unsigned char key)
+uint8_t pattern_keypress_handler(unsigned char key)
 {
     switch (key) {
         /** CELL EDIT */
@@ -297,6 +298,7 @@ void pattern_keypress_handler(unsigned char key)
             pattern_refresh_step(active_voice_index, active_step);
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+            dirty_track = 1;
         } break;
         case KB_DELETE: {
             active_voice->steps[active_step].note     = NOTE_OUT_OF_RANGE;
@@ -306,6 +308,7 @@ void pattern_keypress_handler(unsigned char key)
             pattern_refresh_step(active_voice_index, active_step);
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+            dirty_track = 1;
         } break;
 
         /** CELL NAVIGATION */
@@ -406,6 +409,7 @@ void pattern_keypress_handler(unsigned char key)
             if (track.pattern_count < NUM_PATTERNS) {
                 track.pattern_count++;
                 active_pattern_index = track.pattern_count - 1;
+                dirty_track = 1;
             }
             active_pattern_index = zmt_pattern_set(&track, active_pattern_index);
             active_pattern       = track.patterns[active_pattern_index];
@@ -420,5 +424,9 @@ void pattern_keypress_handler(unsigned char key)
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
+        default: {
+            return 0; // unhandled
+        }
     }
+    return 1;
 }

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <inttypes.h>
 #include <zos_keyboard.h>
 #include "tracker.h"
@@ -10,9 +11,10 @@
 #define ARRANGEMENT_ROW (8U)
 #define ARRANGEMENT_LEN (4U)
 
-uint8_t arrange_active_cell   = 0;
-uint8_t arrange_active_step   = 0;
-uint8_t arrange_previous_step = 0;
+uint8_t arrange_active_cell           = 0;
+uint8_t arrange_active_step           = 0;
+arrangement_t* arrange_last_step_edit = NULL;
+uint8_t arrange_previous_step         = 0;
 
 #define WINDOW_Y (5U)
 #define WINDOW_W (((ARRANGEMENT_COL * (ARRANGEMENT_LEN + 1)) - 1) + 4)
@@ -75,6 +77,7 @@ void arrange_update_cell(int8_t amount)
     arrangement_t* a = &track.arrangement[arrange_active_step];
     STEP_XY(arrange_active_step);
     uint8_t width = 1;
+    dirty_track = 1;
 
     switch (arrange_active_cell) {
         case Cell_Pattern: {
@@ -185,20 +188,35 @@ void arrange_show(uint8_t index)
     arrange_color_cell(arrange_active_step, arrange_active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
 }
 
-void arrange_keypress_handler(unsigned char key)
+uint8_t arrange_keypress_handler(unsigned char key)
 {
     switch (key) {
         case KB_LEFT_ARROW: {
             arrange_update_cell(-1);
+            arrange_last_step_edit = &track.arrangement[arrange_active_step];
         } break;
         case KB_RIGHT_ARROW: {
             arrange_update_cell(1);
+            arrange_last_step_edit = &track.arrangement[arrange_active_step];
         } break;
         case KB_PG_DOWN: {
             arrange_update_cell(-2);
+            arrange_last_step_edit = &track.arrangement[arrange_active_step];
         } break;
         case KB_PG_UP: {
             arrange_update_cell(2);
+            arrange_last_step_edit = &track.arrangement[arrange_active_step];
+        } break;
+        case KB_INSERT: {
+            memcpy(&track.arrangement[arrange_active_step], arrange_last_step_edit, sizeof(arrangement_t));
+            arrange_refresh_step(arrange_active_step);
+            dirty_track = 1;
+        } break;
+        case KB_DELETE: {
+            track.arrangement[arrange_active_step].pattern_index = ARRANGEMENT_OUT_OF_RANGE;
+            track.arrangement[arrange_active_step].fx            = FX_OUT_OF_RANGE;
+            arrange_refresh_step(arrange_active_step);
+            dirty_track = 1;
         } break;
 
         /* Tempo */
@@ -256,7 +274,12 @@ void arrange_keypress_handler(unsigned char key)
                 arrange_active_cell = 0;
             arrange_color_cell(arrange_active_step, arrange_active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
+
+        default: {
+            return 0; // unhandled
+        }
     }
+    return 1;
 }
 
 void arrange_current_step_handler(uint8_t current_step)

@@ -12,6 +12,7 @@
 #include "arrange.h"
 #include "file_dialog.h"
 #include "help_dialog.h"
+#include "confirm_dialog.h"
 
 static zos_err_t err = ERR_SUCCESS;
 unsigned char key    = 0;
@@ -24,16 +25,11 @@ uint8_t current_step        = 0;
 uint8_t current_pattern     = 0;
 uint8_t current_arrangement = 0;
 callback_t close_handler    = NULL;
-
-typedef enum {
-    VIEW_ARRANGER,  /* 0 */
-    VIEW_PATTERN,   /* 1 */
-    VIEW_HELP,      /* 2 */
-    VIEW_FILE_SAVE, /* 3 */
-    VIEW_FILE_LOAD, /* 4 */
-} View;
+confirm_t confirm_handler   = NULL;
 
 View active_view, previous_view;
+
+uint8_t dirty_track = 0;
 
 window_t win_Main = {
     .x     = 0,
@@ -82,6 +78,16 @@ void dialog_close(void)
     view_switch(active_view);
 }
 
+void redraw(void)
+{
+    // draw the main window
+    window(&win_Main);
+
+    window_banner(&win_Main, 0, win_Main.h - 1, 1,
+                  "[\x74Q]uit  [\x74H]elp  [\x74S]ave  [\x74L]oad  [\x74\x11\x10] Edit  [\x74\x1E\x1F] Move [\x74\x1A] "
+                  "Next Cell");
+}
+
 void view_switch(View view)
 {
     switch (view) {
@@ -106,30 +112,51 @@ void view_switch(View view)
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
             close_handler               = &dialog_close;
-            help_dialog_show();
+            help_dialog_show(active_view);
         } break;
         case VIEW_FILE_SAVE: {
-            keypress_handler            = NULL;
+            // keypress_handler            = &file_keypress_handler;
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
             close_handler               = &dialog_close;
             file_dialog_show(FILE_SAVE);
         } break;
         case VIEW_FILE_LOAD: {
-            keypress_handler            = NULL;
+            // keypress_handler            = &file_keypress_handler;
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
             close_handler               = &dialog_close;
             file_dialog_show(FILE_LOAD);
+        } break;
+        case VIEW_QUIT: {
+            confirm_handler             = &__exit;
+            close_handler               = &dialog_close;
+            keypress_handler            = &confirm_keypress_handler;
+            current_step_handler        = NULL;
+            current_arrangement_handler = NULL;
+            if (dirty_track == 0) {
+                confirm_dialog_show(active_view, "Quit?");
+            } else {
+                confirm_dialog_show(active_view, "You have unsaved changes, Quit?");
+            }
         } break;
     }
 }
 
 void handle_keypress(char key)
 {
+    uint8_t handled = 0;
+    // call the current views handler, if one is set
+    if (keypress_handler != NULL) {
+        handled = keypress_handler(key);
+    }
+    if(handled) return;
+
     switch (key) {
         /* QUIT */
-        case KB_ESC: __exit(ERR_SUCCESS);
+        case KB_KEY_Q: {
+            view_switch(VIEW_QUIT);
+        } break;
         /* PLAY */
         case KB_KEY_SPACE: {
             playing ^= 1;
@@ -165,13 +192,6 @@ void handle_keypress(char key)
         case KB_KEY_P: {
             view_switch(VIEW_PATTERN);
         } break;
-
-        default: {
-            // call the current views handler, if one is set
-            if (keypress_handler != NULL) {
-                keypress_handler(key);
-            }
-        } break;
     }
 }
 
@@ -188,12 +208,11 @@ int main(int argc, char** argv)
     load_or_init_file(argc, argv);
     zmt_reset(VOL_75);
 
-    // draw the main window
-    window(&win_Main);
+    redraw();
 
     // initialize everything
     current_pattern = 0;
-    view_switch(VIEW_ARRANGER);
+    view_switch(VIEW_PATTERN);
     previous_view = active_view;
 
     // main loop
@@ -223,15 +242,16 @@ int main(int argc, char** argv)
             cursor_xy(1, 1);
             print(textbuff);
             text_demap_vram();
-        } else {
-            // print the active,previous view
-            sprintf(textbuff, "%02d %02d", active_view, previous_view);
-            text_map_vram();
-            setcolor(TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
-            cursor_xy(1, 1);
-            print(textbuff);
-            text_demap_vram();
         }
+        // else {
+        //     // print the active,previous view
+        //     sprintf(textbuff, "%02d %02d", active_view, previous_view);
+        //     text_map_vram();
+        //     setcolor(TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
+        //     cursor_xy(1, 1);
+        //     print(textbuff);
+        //     text_demap_vram();
+        // }
     }
 
     // unreachable

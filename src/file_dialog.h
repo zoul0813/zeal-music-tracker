@@ -7,5 +7,5 @@ typedef enum {
 } file_dialog_t;
 
 void file_dialog_show(file_dialog_t type);
-
+uint8_t file_keypress_handler(unsigned char key);
 #endif

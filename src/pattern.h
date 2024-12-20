@@ -13,7 +13,7 @@
 #define CELL_OFFSET_F2   10
 
 void pattern_show(uint8_t index);
-void pattern_keypress_handler(unsigned char key);
+uint8_t pattern_keypress_handler(unsigned char key);
 void pattern_current_step_handler(uint8_t current_step);
 
 #endif
