@@ -5,6 +5,7 @@
 #include "shared.h"
 #include "windows.h"
 #include "pattern.h"
+#include "confirm_dialog.h"
 
 
 voice_t* active_voice      = NULL;
@@ -71,7 +72,7 @@ void pattern_update_cell(voice_t* voice, int8_t amount)
 {
     step_t* step = &voice->steps[active_step];
     window_t* w  = windows[active_voice_index];
-    dirty_track = 1;
+    dirty_track  = 1;
     switch (active_cell) {
         case Cell_Frequency:
             if (amount > 1)
@@ -273,6 +274,53 @@ void pattern_current_step_handler(uint8_t current_step)
     previous_step = current_step;
 }
 
+int clear_pattern_handler(uint8_t confirmed)
+{
+    if (confirmed != ERR_SUCCESS)
+        return ERR_FAILURE;
+
+    zmt_pattern_init(active_pattern);
+
+    dirty_track = 1;
+    window_gotoxy(&win_Indicators, 0, 0);
+    sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
+    window_puts(&win_Indicators, textbuff);
+
+    pattern_refresh_steps();
+    pattern_color_step(active_step, PATTERN_WINDOW_HL1);
+    pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+
+    return ERR_SUCCESS;
+}
+
+int delete_pattern_handler(uint8_t confirmed)
+{
+    if (confirmed != ERR_SUCCESS)
+        return ERR_FAILURE;
+
+    // shift everything down...
+    uint8_t i;
+    for (i = active_pattern_index + 1; i < NUM_PATTERNS; i++) {
+        pattern_t* p_dest = track.patterns[i - 1];
+        pattern_t* p_src  = track.patterns[i];
+        memcpy(p_dest, p_src, sizeof(pattern_t));
+    }
+    track.pattern_count--;
+    if(active_pattern_index >= track.pattern_count) {
+        active_pattern_index = track.pattern_count - 1;
+    }
+
+    window_gotoxy(&win_Indicators, 0, 0);
+    sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
+    window_puts(&win_Indicators, textbuff);
+
+    pattern_refresh_steps();
+    pattern_color_step(active_step, PATTERN_WINDOW_HL1);
+    pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+
+    return ERR_SUCCESS;
+}
+
 uint8_t pattern_keypress_handler(unsigned char key)
 {
     switch (key) {
@@ -409,7 +457,7 @@ uint8_t pattern_keypress_handler(unsigned char key)
             if (track.pattern_count < NUM_PATTERNS) {
                 track.pattern_count++;
                 active_pattern_index = track.pattern_count - 1;
-                dirty_track = 1;
+                dirty_track          = 1;
             }
             active_pattern_index = zmt_pattern_set(&track, active_pattern_index);
             active_pattern       = track.patterns[active_pattern_index];
@@ -423,6 +471,21 @@ uint8_t pattern_keypress_handler(unsigned char key)
             pattern_refresh_steps();
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+        } break;
+        case KB_KEY_C: {
+            // clear pattern
+            confirm_handler = &clear_pattern_handler;
+            confirm_dialog_show("Clear Pattern?");
+        } break;
+        case KB_KEY_D: {
+            // delete pattern
+            if (active_pattern_index < 1)
+                break;
+            if (track.pattern_count < 2)
+                break;
+
+            confirm_handler = &delete_pattern_handler;
+            confirm_dialog_show("Delete Pattern?");
         } break;
         default: {
             return 0; // unhandled

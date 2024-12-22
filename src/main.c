@@ -14,18 +14,19 @@
 #include "help_dialog.h"
 #include "confirm_dialog.h"
 
-static zos_err_t err = ERR_SUCCESS;
-unsigned char key    = 0;
-keypress_t keypress_handler;
-current_step_t current_step_handler;
-current_step_t current_arrangement_handler;
+static zos_err_t err                       = ERR_SUCCESS;
+unsigned char key                          = 0;
+keypress_t keypress_handler                = NULL;
+current_step_t current_step_handler        = NULL;
+current_step_t current_arrangement_handler = NULL;
+callback_t close_handler                   = NULL;
+confirm_t confirm_handler                  = NULL;
+
 uint8_t mmu_page_current;
 uint8_t playing             = 0;
 uint8_t current_step        = 0;
 uint8_t current_pattern     = 0;
 uint8_t current_arrangement = 0;
-callback_t close_handler    = NULL;
-confirm_t confirm_handler   = NULL;
 
 View active_view, previous_view;
 
@@ -105,39 +106,32 @@ void view_switch(View view)
             keypress_handler            = &pattern_keypress_handler;
             current_step_handler        = &pattern_current_step_handler;
             current_arrangement_handler = NULL;
-            pattern_show(current_pattern);
+            pattern_show(active_pattern_index);
         } break;
         case VIEW_HELP: {
             keypress_handler            = &help_keypress_handler;
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
-            close_handler               = &dialog_close;
             help_dialog_show(active_view);
         } break;
         case VIEW_FILE_SAVE: {
             // keypress_handler            = &file_keypress_handler;
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
-            close_handler               = &dialog_close;
             file_dialog_show(FILE_SAVE);
         } break;
         case VIEW_FILE_LOAD: {
             // keypress_handler            = &file_keypress_handler;
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
-            close_handler               = &dialog_close;
             file_dialog_show(FILE_LOAD);
         } break;
         case VIEW_QUIT: {
             confirm_handler             = &__exit;
-            close_handler               = &dialog_close;
-            keypress_handler            = &confirm_keypress_handler;
-            current_step_handler        = NULL;
-            current_arrangement_handler = NULL;
             if (dirty_track == 0) {
-                confirm_dialog_show(active_view, "Quit?");
+                confirm_dialog_show("Quit?");
             } else {
-                confirm_dialog_show(active_view, "You have unsaved changes, Quit?");
+                confirm_dialog_show("You have unsaved changes, Quit?");
             }
         } break;
     }
@@ -150,7 +144,8 @@ void handle_keypress(char key)
     if (keypress_handler != NULL) {
         handled = keypress_handler(key);
     }
-    if(handled) return;
+    if (handled)
+        return;
 
     switch (key) {
         /* QUIT */
@@ -211,6 +206,7 @@ int main(int argc, char** argv)
     redraw();
 
     // initialize everything
+    close_handler   = &dialog_close;
     current_pattern = 0;
     view_switch(VIEW_PATTERN);
     previous_view = active_view;

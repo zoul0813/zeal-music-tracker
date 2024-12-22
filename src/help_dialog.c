@@ -7,7 +7,7 @@
 #include "help_dialog.h"
 
 #define HELP_W (SCREEN_COL80_WIDTH / 2)
-#define HELP_H 26U
+#define HELP_H 23U
 #define HELP_X ((SCREEN_COL80_WIDTH - HELP_W) / 2)
 #define HELP_Y ((SCREEN_COL80_HEIGHT - HELP_H) / 2)
 
@@ -24,6 +24,11 @@ window_t win_Help = {
 
 void help_dialog_show(View view)
 {
+    switch(view) {
+        case VIEW_ARRANGER: win_Help.h = 23; break;
+        case VIEW_PATTERN: win_Help.h = 27; break;
+    }
+
     window(&win_Help);
     window_puts_color(&win_Help, " General\n", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
     window_puts(&win_Help, " \xF9 S - Save File\n");
@@ -54,6 +59,8 @@ void help_dialog_show(View view)
             window_puts(&win_Help, " \xF9 1-4 - Voice 1-4\n");
             window_puts(&win_Help, " \xF9 [/] - Prev/Next Pattern\n");
             window_puts(&win_Help, " \xF9 N - New Pattern\n");
+            window_puts(&win_Help, " \xF9 C - Clear Pattern\n");
+            window_puts(&win_Help, " \xF9 D - Delete Pattern\n");
         } break;
     }
 

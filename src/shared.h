@@ -21,17 +21,22 @@ typedef void (*callback_t)(void);
 typedef int (*confirm_t)(uint8_t);
 
 typedef enum {
-    VIEW_ARRANGER,  /* 0 */
-    VIEW_PATTERN,   /* 1 */
-    VIEW_HELP,      /* 2 */
-    VIEW_FILE_SAVE, /* 3 */
-    VIEW_FILE_LOAD, /* 4 */
-    VIEW_QUIT,      /* 5 */
+    VIEW_NONE,      /* 0 */
+    VIEW_ARRANGER,  /* 1 */
+    VIEW_PATTERN,   /* 2 */
+    VIEW_HELP,      /* 3 */
+    VIEW_FILE_SAVE, /* 4 */
+    VIEW_FILE_LOAD, /* 5 */
+    VIEW_QUIT,      /* 6 */
 } View;
 
 extern track_t track;
 extern pattern_t* active_pattern;
 extern uint8_t active_pattern_index;
+
+extern keypress_t keypress_handler;
+extern current_step_t current_step_handler;
+extern current_step_t current_arrangement_handler;
 extern callback_t close_handler;
 extern confirm_t confirm_handler;
 

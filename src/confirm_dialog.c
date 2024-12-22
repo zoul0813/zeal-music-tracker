@@ -22,15 +22,35 @@ window_t win_Confirm = {
     .title = "Confirm",
 };
 
-void confirm_dialog_show(View view, const char* message)
+keypress_t keypress_handler_backup                = NULL;
+current_step_t current_step_handler_backup        = NULL;
+current_step_t current_arrangement_handler_backup = NULL;
+
+void confirm_dialog_show(const char* message)
 {
-    view; // unreferenced
+    if (confirm_handler == NULL)
+        return; // ignore the request
+    if (close_handler == NULL)
+        return; // ignore the request
+
+    keypress_handler_backup            = keypress_handler;
+    current_step_handler_backup        = current_step_handler;
+    current_arrangement_handler_backup = current_arrangement_handler;
+    keypress_handler = &confirm_keypress_handler;
+
     window(&win_Confirm);
     window_gotoxy(&win_Confirm, 2, 1);
     window_puts(&win_Confirm, message);
     window_puts(&win_Confirm, "\n\n");
     window_puts(&win_Confirm, "  [Y]es  [N]o");
     // window_banner(&win_Confirm, 0, win_Confirm.h - 1, 1, "[\x74Y]es  [\x74N]o");
+}
+
+void reset_handlers(void)
+{
+    keypress_handler            = keypress_handler_backup;
+    current_step_handler        = current_step_handler_backup;
+    current_arrangement_handler = current_arrangement_handler_backup;
 }
 
 uint8_t confirm_keypress_handler(unsigned char key)
@@ -40,9 +60,10 @@ uint8_t confirm_keypress_handler(unsigned char key)
             if (confirm_handler != NULL) {
                 confirm_handler(ERR_SUCCESS);
             }
-        } // if we didn't break, fall thru and close???
+        } // fall thru and close???
         case KB_KEY_N: {
             if (close_handler != NULL) {
+                reset_handlers();
                 close_handler();
             }
         } break;
