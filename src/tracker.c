@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include <zvb_hardware.h>
 #include <zvb_sound.h>
 #include "tracker.h"
 
@@ -457,13 +458,13 @@ void zmt_play_pattern(pattern_t* pattern, uint8_t step_index)
     step_t* step3 = &pattern->voices[2].steps[step_index];
     step_t* step4 = &pattern->voices[3].steps[step_index];
 
-    uint8_t backup_page = mmu_page0_ro;
+    uint8_t backup_periph = zvb_config_dev_idx;
     zvb_map_peripheral(ZVB_PERI_SOUND_IDX);
     zmt_play_step(step1, VOICE0);
     zmt_play_step(step2, VOICE1);
     zmt_play_step(step3, VOICE2);
     zmt_play_step(step4, VOICE3);
-    zvb_map_peripheral(backup_page);
+    zvb_map_peripheral(backup_periph);
 }
 
 
@@ -1055,17 +1056,28 @@ uint8_t zmt_track_reset(track_t* track, uint8_t reset_pattern)
 /* sound off*/
 void zmt_sound_off(void)
 {
-    uint8_t backup_page = mmu_page0_ro;
+    uint8_t backup_periph = zvb_config_dev_idx;
     zvb_map_peripheral(ZVB_PERI_SOUND_IDX);
     SOUND_OFF();
-    zvb_map_peripheral(backup_page);
+    zvb_map_peripheral(backup_periph);
 }
 
 /* reset the sound system, setting volume */
 void zmt_reset(sound_volume_t vol)
 {
-    uint8_t backup_page = mmu_page0_ro;
+    uint8_t backup_periph = zvb_config_dev_idx;
     zvb_map_peripheral(ZVB_PERI_SOUND_IDX);
-    SOUND_RESET(vol);
-    zvb_map_peripheral(backup_page);
-}
+
+    SOUND_SELECT(VOICEALL);
+    // no frequency (ie; quiet)
+    zvb_peri_sound_freq_low  = 0x00;
+    zvb_peri_sound_freq_high = 0x00;
+
+    SOUND_VOL(vol);
+
+    zvb_peri_sound_hold = ~VOICEALL & 0xFF;
+
+    zvb_peri_sound_volume_left = VOICEALL;
+    zvb_peri_sound_volume_right = VOICEALL;
+    zvb_map_peripheral(backup_periph);
+ }

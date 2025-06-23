@@ -116,3 +116,8 @@ endif
 
 all::
 	@echo "Binary Size" $$($(STAT_BYTES) $(OUTPUT_DIR)/$(BIN)) $(BIN)
+
+run:
+	$(ZEAL_NATIVE_BIN) -H bin -r $(ZEAL_NATIVE_ROM) -t tf.img -e eeprom.img
+
+native: all run

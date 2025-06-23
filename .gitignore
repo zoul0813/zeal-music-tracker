@@ -6,3 +6,6 @@ assets/*.zt[spm]
 *.tiled-session
 
 *.zmt
+*.bak
+*.img
+zeal.ini
