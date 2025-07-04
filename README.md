@@ -78,7 +78,9 @@ correspond with the Goto FX.  FX E0 will goto Step E0 (ie; Step 16).
 * [X] 0x13 - Noise
 * [X] 0xC0-0xC8 - Countdown (value - 0xC0)
 * [X] 0xD0-0xEF - Goto Step (value - 0xD0)
-* [X] 0xF0-0xF8 - Volume (0, 12.5, 25, 37.5, 50, 62.5, 75, 87.5, 100)
+* [X] 0xF0-0xF4 - Volume Voice (0, 25, 50, 75, 100)
+* [ ] 0xF5-0xF9 - Volume All (0, 25, 50, 75, 100)
+* [ ] 0xF0-0xF4 - Pan (Center, Left, Right)
 
 #### Notes
 

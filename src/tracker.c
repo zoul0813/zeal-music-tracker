@@ -390,34 +390,28 @@ void zmt_process_fx(step_t* step, fx_t fx, sound_voice_t voice)
         case FX_VOL_00_0: {
             SOUND_VOL(VOL_0);
         } break;
-        case FX_VOL_12_5: {
-            // TODO: 8 step volume control
-            SOUND_VOL(VOL_0);
-        } break;
         case FX_VOL_25_0: {
-            SOUND_VOL(VOL_25);
-        } break;
-        case FX_VOL_37_5: {
-            // TODO: 8 step volume control
             SOUND_VOL(VOL_25);
         } break;
         case FX_VOL_50_0: {
             SOUND_VOL(VOL_50);
         } break;
-        case FX_VOL_62_5: {
-            // TODO: 8 step volume control
-            SOUND_VOL(VOL_50);
-        } break;
         case FX_VOL_75_0: {
-            SOUND_VOL(VOL_75);
-        } break;
-        case FX_VOL_87_5: {
-            // TODO: 8 step volume control
             SOUND_VOL(VOL_75);
         } break;
         case FX_VOL_100: {
             SOUND_VOL(VOL_100);
         } break;
+
+        case FX_VOL_ALL_00_0: {} break;
+        case FX_VOL_ALL_25_0: {} break;
+        case FX_VOL_ALL_50_0: {} break;
+        case FX_VOL_ALL_75_0: {} break;
+        case FX_VOL_ALL_100: {} break;
+
+        case FX_PAN_CENTER: {} break;
+        case FX_PAN_LEFT: {} break;
+        case FX_PAN_RIGHT: {} break;
     }
 }
 

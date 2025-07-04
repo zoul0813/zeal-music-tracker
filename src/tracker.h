@@ -160,14 +160,20 @@ typedef enum {
 
     // Volume, 8-steps (per channel???)
     FX_VOL_00_0 = 0xF0,
-    FX_VOL_12_5 = 0xF1,
-    FX_VOL_25_0 = 0xF2,
-    FX_VOL_37_5 = 0xF3,
-    FX_VOL_50_0 = 0xF4,
-    FX_VOL_62_5 = 0xF5,
-    FX_VOL_75_0 = 0xF6,
-    FX_VOL_87_5 = 0xF7,
-    FX_VOL_100  = 0xF8,
+    FX_VOL_25_0 = 0xF1,
+    FX_VOL_50_0 = 0xF2,
+    FX_VOL_75_0 = 0xF3,
+    FX_VOL_100  = 0xF4,
+
+    FX_VOL_ALL_00_0 = 0xF5,
+    FX_VOL_ALL_25_0 = 0xF6,
+    FX_VOL_ALL_50_0 = 0xF7,
+    FX_VOL_ALL_75_0 = 0xF8,
+    FX_VOL_ALL_100  = 0xF9,
+
+    FX_PAN_CENTER = 0xFA,
+    FX_PAN_LEFT   = 0xFB,
+    FX_PAN_RIGHT  = 0xFC,
 } FX;
 typedef uint8_t fx_t;
 typedef uint8_t fx_attr_t;
