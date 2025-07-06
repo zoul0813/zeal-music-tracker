@@ -324,7 +324,7 @@ static inline void SOUND_DIV(uint16_t div)
 /* Internal - set waveform */
 static inline void SOUND_WAVE(uint8_t waveform)
 {
-    zvb_peri_sound_wave = (waveform & 03);
+    zvb_peri_sound_wave = (waveform & 03) | DUTY_CYCLE_50_0;
 }
 /* Internal - set voice selection */
 static inline void SOUND_SELECT(uint8_t voices)
@@ -349,6 +349,7 @@ static inline void SOUND_VOL(uint8_t vol)
 static inline void SOUND_RESET(uint8_t vol)
 {
     SOUND_VOL(vol);
+    SOUND_WAVE(WAV_SQUARE);
     zvb_peri_sound_hold = ~VOICEALL & 0xFF;
     SOUND_OFF();
 }

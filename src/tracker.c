@@ -418,12 +418,11 @@ void zmt_process_fx(step_t* step, fx_t fx, sound_voice_t voice)
 void zmt_play_step(step_t* step, sound_voice_t voice)
 {
     // pattern_t *pattern = active_pattern; // TODO: gonna have more than one pattern soon, lol
+    SOUND_SELECT(voice);
 
     // FX1 is pre-processed
     if (step->fx1 != FX_OUT_OF_RANGE)
         zmt_process_fx(step, step->fx1, voice);
-
-    SOUND_SELECT(voice);
 
     if (step->note != NOTE_OUT_OF_RANGE) {
         note_t note = NOTES[step->note];
@@ -1068,6 +1067,8 @@ void zmt_reset(sound_volume_t vol)
     zvb_peri_sound_freq_high = 0x00;
 
     SOUND_VOL(vol);
+
+    SOUND_WAVE(WAV_SQUARE);
 
     zvb_peri_sound_hold = ~VOICEALL & 0xFF;
 
