@@ -145,7 +145,7 @@ void pattern_color_step(uint8_t step_index, uint8_t color)
     // MAGIC: 12 = magic length of the step text :)
     SCR_COLOR[y][2] = COLOR(color, TEXT_COLOR_DARK_GRAY);
     SCR_COLOR[y][3] = COLOR(color, TEXT_COLOR_DARK_GRAY);
-    for (uint8_t i = 0; i < 12; i++) {
+    for (uint8_t i = 0; i < 11; i++) {
         SCR_COLOR[y][x1 + i] = clr;
         SCR_COLOR[y][x2 + i] = clr;
         SCR_COLOR[y][x3 + i] = clr;
