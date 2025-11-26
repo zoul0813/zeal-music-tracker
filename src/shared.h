@@ -43,7 +43,7 @@ extern confirm_t confirm_handler;
 
 extern uint8_t dirty_track;
 
-extern char textbuff[SCREEN_COL80_WIDTH];
+extern char textbuff[PATH_MAX];
 
 int __exit(zos_err_t err);
 void handle_error(zos_err_t err, char* msg, uint8_t fatal);

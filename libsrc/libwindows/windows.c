@@ -314,18 +314,22 @@ uint8_t window_puts(window_t* w, const char* s)
 
 uint8_t window_puts_color(window_t* w, const char* s, uint8_t color)
 {
-    // TODO: arbitrary 256 byte max length?
-    // uint8_t current_x = GET_X();
-    // uint8_t current_y = GET_Y();
     uint8_t lines = 0;
-    for (int i = 0; i < 256; i++) {
-        if (s[i] == 0x00)
-            break;
-        lines += window_putc_color(w, s[i], color);
+    uint8_t clr = color;
+    const char* p = s;
+
+    while (*p) {
+        char ch = *p;
+        if (ch == 0x1B && p[1] && p[2]) {
+            clr = p[1];
+            ch = p[2];
+            p += 3;
+        } else {
+            clr = color;
+            ch = *p++;
+        }
+        lines += window_putc_color(w, ch, clr);
     }
-
-    // SET_XY(current_x, current_y);
-
     return lines;
 }
 

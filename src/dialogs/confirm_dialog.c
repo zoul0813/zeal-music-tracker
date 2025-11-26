@@ -44,7 +44,7 @@ void confirm_dialog_show(const char* message)
     window_gotoxy(&win_Confirm, 2, 1);
     window_puts(&win_Confirm, message);
     window_puts(&win_Confirm, "\n\n");
-    window_puts(&win_Confirm, "  [Y]es  [N]o");
+    window_puts(&win_Confirm, "  [\x1B\x74Y]es  [\x1B\x74N]o");
     // window_banner(&win_Confirm, 0, win_Confirm.h - 1, 1, "[\x74Y]es  [\x74N]o");
 }
 

@@ -28,7 +28,7 @@ uint8_t current_step        = 0;
 uint8_t current_pattern     = 0;
 uint8_t current_arrangement = 0;
 
-View active_view, previous_view;
+View active_view = VIEW_NONE, previous_view = VIEW_NONE;
 
 uint8_t dirty_track = 0;
 
@@ -77,7 +77,7 @@ void load_or_init_file(int argc, char** argv)
 
 void dialog_close(void)
 {
-    view_switch(active_view);
+    view_switch(previous_view);
 }
 
 void redraw(void)
@@ -98,9 +98,25 @@ void redraw(void)
 
 void view_switch(View view)
 {
+    if(active_view == view) return;
+    uint8_t is_main_view = (view == VIEW_ARRANGER || view == VIEW_PATTERN);
+    uint8_t was_main_view = (active_view == VIEW_NONE || active_view == VIEW_ARRANGER || active_view == VIEW_PATTERN);
+
+    if (!is_main_view && was_main_view) {
+        // Switching from a main view to a dialog - save the screen
+        window_save();
+    } else if (is_main_view && !was_main_view) {
+        // Returning from a dialog to a main view - restore the screen
+        active_view = view;
+        window_restore();
+        return;
+    }
+    // Otherwise it's a main view to main view transition - full redraw below
+
+    previous_view = active_view;
+    active_view = view;
     switch (view) {
         case VIEW_ARRANGER: {
-            active_view = view;
             window_clrscr(&win_Main);
             keypress_handler            = &arrange_keypress_handler;
             current_step_handler        = NULL;
@@ -108,7 +124,6 @@ void view_switch(View view)
             arrange_show(0);
         } break;
         case VIEW_PATTERN: {
-            active_view = view;
             window_clrscr(&win_Main);
             keypress_handler            = &pattern_keypress_handler;
             current_step_handler        = &pattern_current_step_handler;
@@ -126,12 +141,18 @@ void view_switch(View view)
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
             file_dialog_show(FILE_SAVE);
+            view_switch(previous_view);
         } break;
         case VIEW_FILE_LOAD: {
             // keypress_handler            = &file_keypress_handler;
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
-            file_dialog_show(FILE_LOAD);
+            uint8_t refresh = file_dialog_show(FILE_LOAD);
+            if (refresh) {
+                // Force active_view to trigger full redraw
+                active_view = VIEW_NONE;
+            }
+            view_switch(previous_view);
         } break;
         case VIEW_QUIT: {
             confirm_handler             = &__exit;
@@ -200,7 +221,7 @@ void handle_keypress(char key)
 int main(int argc, char** argv)
 {
     // initialize the keyboard
-    err = kb_mode((void*) (KB_READ_NON_BLOCK | KB_MODE_RAW));
+    err = kb_mode_non_block_raw();
     handle_error(err, "init keyboard", 1);
 
     // disable cursor blink
@@ -216,7 +237,6 @@ int main(int argc, char** argv)
     close_handler   = &dialog_close;
     current_pattern = 0;
     view_switch(VIEW_PATTERN);
-    previous_view = active_view;
 
     // main loop
     while (1) {
@@ -238,27 +258,11 @@ int main(int argc, char** argv)
 
             // print the playhead
             sprintf(textbuff, "%02X %02X %03d", current_pattern, current_step, track.current_tempo);
-            // window_gotoxy(&win_Main, 0, 0);
-            // window_puts(&win_Main, textbuff);
             text_map_vram();
             setcolor(TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
             cursor_xy(1, 1);
             print(textbuff);
             text_demap_vram();
         }
-        // else {
-        //     // print the active,previous view
-        //     sprintf(textbuff, "%02d %02d", active_view, previous_view);
-        //     text_map_vram();
-        //     setcolor(TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
-        //     cursor_xy(1, 1);
-        //     print(textbuff);
-        //     text_demap_vram();
-        // }
     }
-
-    // unreachable
-    // __final:
-    //   __exit(ERR_SUCCESS);
-    //   return 0;
 }

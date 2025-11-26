@@ -111,8 +111,8 @@ typedef enum {
 // #define CH_LRCORNER         0xD9 // Bottom Right
 // #define CH_HLINE            0xC4 // Horizonal line
 // #define CH_VLINE            0xB3 // Vertical line
-// #define CH_DOT              0xF9 // Vertically Centered "Dot"
-#define CH_DOT              0xAF // The `>>` symbol
+#define CH_DOT              0xF9 // Vertically Centered "Dot"
+// #define CH_DOT              0xAF // The `>>` symbol
 #define CH_BRACKET_LEFT     '[' // The `[-` symbol
 #define CH_BRACKET_RIGHT    ']' // The `-]` symbol
 

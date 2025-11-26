@@ -4,7 +4,7 @@
 #include <zos_video.h>
 #include "shared.h"
 
-char textbuff[SCREEN_COL80_WIDTH];
+char textbuff[PATH_MAX];
 
 pattern_t pattern0;
 pattern_t pattern1;
