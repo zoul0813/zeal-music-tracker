@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <zos_keyboard.h>
+#include <windows.h>
 
-#include "windows.h"
 #include "shared.h"
 #include "confirm_dialog.h"
 
@@ -19,6 +19,7 @@ window_t win_Confirm = {
     .flags = WIN_BORDER | WIN_SHADOW,
     .fg    = TEXT_COLOR_BLACK,
     .bg    = TEXT_COLOR_LIGHT_GRAY,
+    .fg_highlight = TEXT_COLOR_WHITE,
     .title = "Confirm",
 };
 
@@ -33,6 +34,7 @@ void confirm_dialog_show(const char* message)
     if (close_handler == NULL)
         return; // ignore the request
 
+    window_save();
     keypress_handler_backup            = keypress_handler;
     current_step_handler_backup        = current_step_handler;
     current_arrangement_handler_backup = current_arrangement_handler;
@@ -71,5 +73,6 @@ uint8_t confirm_keypress_handler(unsigned char key)
             return 0; // unhandled
         }
     }
+    window_restore();
     return 1;
 }

@@ -1072,7 +1072,7 @@ void zmt_reset(sound_volume_t vol)
 
     zvb_peri_sound_hold = ~VOICEALL & 0xFF;
 
-    zvb_peri_sound_volume_left = VOICEALL;
-    zvb_peri_sound_volume_right = VOICEALL;
+    zvb_peri_sound_left_channel = VOICEALL;
+    zvb_peri_sound_right_channel = VOICEALL;
     zvb_map_peripheral(backup_periph);
  }

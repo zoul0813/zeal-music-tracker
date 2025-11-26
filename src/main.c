@@ -2,17 +2,17 @@
 #include <stdint.h>
 #include <zos_sys.h>
 #include <zos_video.h>
+#include <keyboard.h>
+#include <windows.h>
 
-#include "keyboard.h"
-#include "windows.h"
 #include "tracker.h"
 #include "shared.h"
 // views
 #include "pattern.h"
 #include "arrange.h"
-#include "file_dialog.h"
-#include "help_dialog.h"
-#include "confirm_dialog.h"
+#include "dialogs/file_dialog.h"
+#include "dialogs/help_dialog.h"
+#include "dialogs/confirm_dialog.h"
 
 static zos_err_t err                       = ERR_SUCCESS;
 unsigned char key                          = 0;
@@ -41,6 +41,7 @@ window_t win_Main = {
     .title = "Zeal Music Tracker",
     .fg    = TEXT_COLOR_LIGHT_GRAY,
     .bg    = TEXT_COLOR_DARK_GRAY,
+    .fg_highlight = TEXT_COLOR_WHITE,
 };
 
 __sfr __banked __at(0x9d) vid_ctrl_status;
@@ -85,8 +86,14 @@ void redraw(void)
     window(&win_Main);
 
     window_banner(&win_Main, 0, win_Main.h - 1, 1,
-                  "[\x74Q]uit  [\x74H]elp  [\x74S]ave  [\x74L]oad  [\x74\x11\x10] Edit  [\x74\x1E\x1F] Move [\x74\x1A] "
-                  "Next Cell");
+        "[\x1B\x74Q]uit "
+        "[\x1B\x74H]elp "
+        "[\x1B\x74S]ave "
+        "[\x1B\x74L]oad "
+        "[\x1B\x74\x11\x1B\x74\x10] Edit "
+        "[\x1B\x74\x1E\x1B\x74\x1F] Move "
+        "[\x1B\x74\x1A] Next Cell"
+    );
 }
 
 void view_switch(View view)

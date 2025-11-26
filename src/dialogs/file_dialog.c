@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <zos_keyboard.h>
-#include "windows.h"
-#include "keyboard.h"
+#include <windows.h>
+#include <keyboard.h>
+
 #include "shared.h"
 #include "tracker.h"
 #include "file_dialog.h"
@@ -15,6 +16,7 @@ window_t win_FileDialog = {
     .flags = WIN_BORDER | WIN_SHADOW,
     .fg    = TEXT_COLOR_BLACK,
     .bg    = TEXT_COLOR_LIGHT_GRAY,
+    .fg_highlight = TEXT_COLOR_WHITE,
     .title = "Save As...",
 };
 
@@ -24,6 +26,7 @@ uint8_t max_len = 0;
 
 void file_dialog_show(file_dialog_t type)
 {
+    window_save();
     zos_err_t err = ERR_SUCCESS;
     dialog_type = type;
     char_index = 0;
@@ -79,6 +82,7 @@ void file_dialog_show(file_dialog_t type)
     if (close_handler != NULL) {
         close_handler();
     }
+    window_restore();
 }
 
 // uint8_t file_keypress_handler(unsigned char key)

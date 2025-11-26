@@ -2,9 +2,9 @@
 #include <string.h>
 #include <inttypes.h>
 #include <zos_keyboard.h>
+#include <windows.h>
 #include "tracker.h"
 #include "shared.h"
-#include "windows.h"
 #include "arrange.h"
 
 #define ARRANGEMENT_COL (8U)
@@ -29,6 +29,7 @@ window_t win_Arrange = {
     .title = "Arranger",
     .fg    = PATTERN_WINDOW_FG,
     .bg    = PATTERN_WINDOW_BG,
+    .fg_highlight = PATTERN_WINDOW_HL1,
 };
 
 window_t win_Settings = {
@@ -40,6 +41,7 @@ window_t win_Settings = {
     .title = "Settings",
     .fg    = PATTERN_WINDOW_FG,
     .bg    = PATTERN_WINDOW_BG,
+    .fg_highlight = PATTERN_WINDOW_HL1,
 };
 
 #define STEP_XY(step)                                \

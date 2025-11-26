@@ -1,8 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <zos_keyboard.h>
+#include <windows.h>
 
-#include "windows.h"
 #include "shared.h"
 #include "help_dialog.h"
 
@@ -19,11 +19,13 @@ window_t win_Help = {
     .flags = WIN_BORDER | WIN_SHADOW,
     .fg    = TEXT_COLOR_LIGHT_GRAY,
     .bg    = TEXT_COLOR_BROWN,
+    .fg_highlight = TEXT_COLOR_WHITE,
     .title = "Help",
 };
 
 void help_dialog_show(View view)
 {
+    window_save();
     switch(view) {
         case VIEW_ARRANGER: win_Help.h = 23; break;
         case VIEW_PATTERN: win_Help.h = 27; break;
@@ -74,6 +76,7 @@ uint8_t help_keypress_handler(unsigned char key)
         case KB_KEY_ENTER: {
             if (close_handler != NULL)
                 close_handler();
+            window_restore();
         } break;
         default: {
             return 0; // unhandled

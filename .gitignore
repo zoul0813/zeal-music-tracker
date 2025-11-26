@@ -1,4 +1,8 @@
 bin/
+lib/
+build/
+tracks/
+
 *.zip
 /release
 /tmp
@@ -9,3 +13,4 @@ assets/*.zt[spm]
 *.bak
 *.img
 zeal.ini
+autoexec.zs

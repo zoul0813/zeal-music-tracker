@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <zos_keyboard.h>
+#include <windows.h>
+
 #include "tracker.h"
 #include "shared.h"
-#include "windows.h"
 #include "pattern.h"
-#include "confirm_dialog.h"
+#include "dialogs/confirm_dialog.h"
 
 
 voice_t* active_voice      = NULL;
@@ -22,6 +23,7 @@ window_t win_Indicators = {
     .h     = STEPS_PER_PATTERN,
     .fg    = TEXT_COLOR_LIGHT_GRAY,
     .bg    = TEXT_COLOR_DARK_GRAY,
+    .fg_highlight = TEXT_COLOR_WHITE,
     .flags = 0,
 };
 
@@ -31,6 +33,7 @@ window_t win_Pattern1 = {.x     = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 0),
                          .w     = PATTERN_WIN_WIDTH,
                          .fg    = PATTERN_WINDOW_FG,
                          .bg    = PATTERN_WINDOW_BG,
+                         .fg_highlight = PATTERN_WINDOW_HL1,
                          .flags = WIN_BORDER | WIN_SHADOW,
                          .title = "Voice 1"};
 
@@ -40,6 +43,7 @@ window_t win_Pattern2 = {.x     = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 1) + 1 + 
                          .w     = PATTERN_WIN_WIDTH,
                          .fg    = PATTERN_WINDOW_FG,
                          .bg    = PATTERN_WINDOW_BG,
+                         .fg_highlight = PATTERN_WINDOW_HL1,
                          .flags = WIN_BORDER | WIN_SHADOW,
                          .title = "Voice 2"};
 
@@ -49,6 +53,7 @@ window_t win_Pattern3 = {.x     = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 2) + 2 + 
                          .w     = PATTERN_WIN_WIDTH,
                          .fg    = PATTERN_WINDOW_FG,
                          .bg    = PATTERN_WINDOW_BG,
+                         .fg_highlight = PATTERN_WINDOW_HL1,
                          .flags = WIN_BORDER | WIN_SHADOW,
                          .title = "Voice 3"};
 
@@ -58,6 +63,7 @@ window_t win_Pattern4 = {.x     = PATTERN_WIN_X + (PATTERN_WIN_WIDTH * 3) + 3 + 
                          .w     = PATTERN_WIN_WIDTH,
                          .fg    = PATTERN_WINDOW_FG,
                          .bg    = PATTERN_WINDOW_BG,
+                         .fg_highlight = PATTERN_WINDOW_HL1,
                          .flags = WIN_BORDER | WIN_SHADOW,
                          .title = "Voice 4"};
 
