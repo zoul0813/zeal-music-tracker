@@ -152,6 +152,7 @@ void view_switch(View view)
                 // Force active_view to trigger full redraw
                 active_view = VIEW_NONE;
             }
+            window_restore();
             view_switch(previous_view);
         } break;
         case VIEW_QUIT: {
