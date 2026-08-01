@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <zos_keyboard.h>
 #include <windows.h>
 

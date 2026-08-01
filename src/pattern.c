@@ -1,5 +1,4 @@
-#include <stdio.h>
-#include <string.h>
+#include <core.h>
 #include <zos_keyboard.h>
 #include <windows.h>
 
@@ -98,8 +97,8 @@ void pattern_update_cell(voice_t* voice, int8_t amount)
             if (step->note >= NUM_NOTES) {
                 step->note = NOTE_OUT_OF_RANGE;
             }
-            sprintf(textbuff, "%.3s", NOTE_NAMES[step->note]);
-            // TODO: do this better? memcpy the textbuff into SCR_TEXT[y][x]?
+            mem_cpy(textbuff, NOTE_NAMES[step->note], 3);
+            textbuff[3] = 0;
             window_gotoxy(w, CELL_OFFSET_FREQ, active_step + 1);
             window_puts_color(w, textbuff, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
             break;
@@ -111,7 +110,7 @@ void pattern_update_cell(voice_t* voice, int8_t amount)
             if (step->waveform > 0x03) {
                 step->waveform = 0xFF;
             }
-            sprintf(textbuff, "%01X", step->waveform & 0x0F);
+            itoa_pad(step->waveform & 0x0F, textbuff, 16, 'A', '0', 1);
             window_gotoxy(w, CELL_OFFSET_WAVE, active_step + 1);
             window_puts_color(w, textbuff, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
             break;
@@ -121,7 +120,7 @@ void pattern_update_cell(voice_t* voice, int8_t amount)
             if (amount < -1)
                 amount = -16;
             step->fx1 += amount;
-            sprintf(textbuff, "%02X", step->fx1);
+            itoa_pad(step->fx1, textbuff, 16, 'A', '0', 2);
             window_gotoxy(w, CELL_OFFSET_F1, active_step + 1);
             window_puts_color(w, textbuff, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
             break;
@@ -131,7 +130,7 @@ void pattern_update_cell(voice_t* voice, int8_t amount)
             if (amount < -1)
                 amount = -16;
             step->fx2 += amount;
-            sprintf(textbuff, "%02X", step->fx2);
+            itoa_pad(step->fx2, textbuff, 16, 'A', '0', 2);
             window_gotoxy(w, CELL_OFFSET_F2, active_step + 1);
             window_puts_color(w, textbuff, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
             break;
@@ -208,28 +207,36 @@ void pattern_refresh_step(uint8_t voice_index, uint8_t step_index)
     if (step->note == NOTE_OUT_OF_RANGE) {
         window_puts(w, "---");
     } else {
-        sprintf(textbuff, "%.3s", NOTE_NAMES[step->note]);
+        mem_cpy(textbuff, NOTE_NAMES[step->note], 3);
+        textbuff[3] = 0;
         window_puts(w, textbuff);
     }
 
     if (step->waveform == 0xFF) {
         window_puts(w, " - ");
     } else {
-        sprintf(textbuff, " %01X ", step->waveform & 0xF);
+        textbuff[0] = ' ';
+        itoa_pad(step->waveform & 0x0F, &textbuff[1], 16, 'A', '0', 1);
+        textbuff[2] = ' ';
+        textbuff[3] = 0;
         window_puts(w, textbuff);
     }
 
     if (step->fx1 == 0xFF) {
         window_puts(w, "-- ");
     } else {
-        sprintf(textbuff, "%02X ", step->fx1);
+        itoa_pad(step->fx1, textbuff, 16, 'A', '0', 2);
+        textbuff[2] = ' ';
+        textbuff[3] = 0;
         window_puts(w, textbuff);
     }
 
     if (step->fx2 == 0xFF) {
         window_puts(w, "-- ");
     } else {
-        sprintf(textbuff, "%02X ", step->fx2);
+        itoa_pad(step->fx2, textbuff, 16, 'A', '0', 2);
+        textbuff[2] = ' ';
+        textbuff[3] = 0;
         window_puts(w, textbuff);
     }
 }
@@ -260,11 +267,12 @@ void pattern_show(uint8_t index)
     // pattern step indicators
     window(&win_Indicators);
     window_gotoxy(&win_Indicators, 0, 0);
-    sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
+    textbuff[0] = 'P';
+    itoa_pad(active_pattern_index & 0x0F, &textbuff[1], 16, 'A', '0', 1);
     window_puts(&win_Indicators, textbuff);
     window_gotoxy(&win_Indicators, 0, 2);
     for (uint8_t i = 0; i <= FX_GOTO_31 - FX_GOTO_0; i++) {
-        sprintf(textbuff, "%02X", i + FX_GOTO_0);
+        itoa_pad(i + FX_GOTO_0, textbuff, 16, 'A', '0', 2);
         window_puts(&win_Indicators, textbuff);
     }
 
@@ -289,7 +297,8 @@ int clear_pattern_handler(uint8_t confirmed)
 
     dirty_track = 1;
     window_gotoxy(&win_Indicators, 0, 0);
-    sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
+    textbuff[0] = 'P';
+    itoa_pad(active_pattern_index & 0x0F, &textbuff[1], 16, 'A', '0', 1);
     window_puts(&win_Indicators, textbuff);
 
     pattern_refresh_steps();
@@ -309,7 +318,7 @@ int delete_pattern_handler(uint8_t confirmed)
     for (i = active_pattern_index + 1; i < NUM_PATTERNS; i++) {
         pattern_t* p_dest = track.patterns[i - 1];
         pattern_t* p_src  = track.patterns[i];
-        memcpy(p_dest, p_src, sizeof(pattern_t));
+        mem_cpy(p_dest, p_src, sizeof(pattern_t));
     }
     track.pattern_count--;
     if(active_pattern_index >= track.pattern_count) {
@@ -317,7 +326,8 @@ int delete_pattern_handler(uint8_t confirmed)
     }
 
     window_gotoxy(&win_Indicators, 0, 0);
-    sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
+    textbuff[0] = 'P';
+    itoa_pad(active_pattern_index & 0x0F, &textbuff[1], 16, 'A', '0', 1);
     window_puts(&win_Indicators, textbuff);
 
     pattern_refresh_steps();
@@ -348,7 +358,7 @@ uint8_t pattern_keypress_handler(unsigned char key)
             last_step_edit = &active_voice->steps[active_step];
         } break;
         case KB_INSERT: {
-            memcpy(&active_voice->steps[active_step], last_step_edit, sizeof(step_t));
+            mem_cpy(&active_voice->steps[active_step], last_step_edit, sizeof(step_t));
             pattern_refresh_step(active_voice_index, active_step);
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
@@ -444,7 +454,8 @@ uint8_t pattern_keypress_handler(unsigned char key)
             pattern_refresh_steps();
 
             window_gotoxy(&win_Indicators, 0, 0);
-            sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
+            textbuff[0] = 'P';
+            itoa_pad(active_pattern_index & 0x0F, &textbuff[1], 16, 'A', '0', 1);
             window_puts(&win_Indicators, textbuff);
         } break;
         case KB_KEY_RIGHT_BRACKET: {
@@ -455,7 +466,8 @@ uint8_t pattern_keypress_handler(unsigned char key)
             pattern_refresh_steps();
 
             window_gotoxy(&win_Indicators, 0, 0);
-            sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
+            textbuff[0] = 'P';
+            itoa_pad(active_pattern_index & 0x0F, &textbuff[1], 16, 'A', '0', 1);
             window_puts(&win_Indicators, textbuff);
         } break;
         case KB_KEY_N: {
@@ -471,7 +483,8 @@ uint8_t pattern_keypress_handler(unsigned char key)
             zmt_pattern_init(active_pattern);
 
             window_gotoxy(&win_Indicators, 0, 0);
-            sprintf(textbuff, "P%01X", active_pattern_index & 0x0F);
+            textbuff[0] = 'P';
+            itoa_pad(active_pattern_index & 0x0F, &textbuff[1], 16, 'A', '0', 1);
             window_puts(&win_Indicators, textbuff);
 
             pattern_refresh_steps();

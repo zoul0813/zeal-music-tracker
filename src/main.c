@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <core.h>
 #include <stdint.h>
 #include <zos_sys.h>
 #include <zos_video.h>
@@ -72,7 +72,9 @@ void load_or_init_file(int argc, char** argv)
         zmt_track_init(&track);
     }
 
-    printf("Track: %.12s\n", track.title);
+    put_s("Track: ");
+    put_sn(track.title, TRACKER_TITLE_LEN);
+    put_c('\n');
 }
 
 void dialog_close(void)
@@ -258,7 +260,11 @@ int main(int argc, char** argv)
             }
 
             // print the playhead
-            sprintf(textbuff, "%02X %02X %03d", current_pattern, current_step, track.current_tempo);
+            itoa_pad(current_pattern, textbuff, 16, 'A', '0', 2);
+            textbuff[2] = ' ';
+            itoa_pad(current_step, &textbuff[3], 16, 'A', '0', 2);
+            textbuff[5] = ' ';
+            itoa_pad(track.current_tempo, &textbuff[6], 10, 'A', '0', 3);
             text_map_vram();
             setcolor(TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
             cursor_xy(1, 1);

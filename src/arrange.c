@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <string.h>
-#include <inttypes.h>
+#include <core.h>
 #include <zos_keyboard.h>
 #include <windows.h>
 #include "tracker.h"
@@ -57,14 +55,15 @@ void arrange_refresh_step(uint8_t step_index)
     uint8_t width = 4;
 
     if (a->pattern_index == ARRANGEMENT_OUT_OF_RANGE) {
-        sprintf(&textbuff[0], "- ");
+        str_cpy(&textbuff[0], "- ");
     } else {
-        sprintf(&textbuff[0], "%01X ", a->pattern_index & 0x0F);
+        itoa_pad(a->pattern_index & 0x0F, &textbuff[0], 16, 'A', '0', 1);
+        textbuff[1] = ' ';
     }
     if (a->fx == FX_OUT_OF_RANGE) {
-        sprintf(&textbuff[2], "--");
+        str_cpy(&textbuff[2], "--");
     } else {
-        sprintf(&textbuff[2], "%02X", a->fx);
+        itoa_pad(a->fx, &textbuff[2], 16, 'A', '0', 2);
     }
 
     text_map_vram();
@@ -107,18 +106,18 @@ void arrange_update_cell(int8_t amount)
     switch (arrange_active_cell) {
         case Cell_Pattern: {
             if (a->pattern_index == ARRANGEMENT_OUT_OF_RANGE) {
-                sprintf(textbuff, "-");
+                str_cpy(textbuff, "-");
             } else {
-                sprintf(textbuff, "%01X", a->pattern_index & 0x0F);
+                itoa_pad(a->pattern_index & 0x0F, textbuff, 16, 'A', '0', 1);
             }
         } break;
         case Cell_Effect: {
             x     += 2;
             width  = 2;
             if (a->fx == FX_OUT_OF_RANGE) {
-                sprintf(textbuff, "--");
+                str_cpy(textbuff, "--");
             } else {
-                sprintf(textbuff, "%02X", a->fx);
+                itoa_pad(a->fx, textbuff, 16, 'A', '0', 2);
             }
         } break;
     }
@@ -181,7 +180,7 @@ void arrange_show(uint8_t index)
     index; // unreferenced, ignored???
     window(&win_Arrange);
     window(&win_Settings);
-    sprintf(textbuff, "%03u", track.tempo);
+    itoa_pad(track.tempo, textbuff, 10, 'A', '0', 3);
     window_puts(&win_Settings, "Tempo: ");
     window_puts(&win_Settings, textbuff);
 
@@ -210,7 +209,7 @@ uint8_t arrange_keypress_handler(unsigned char key)
             arrange_last_step_edit = &track.arrangement[arrange_active_step];
         } break;
         case KB_INSERT: {
-            memcpy(&track.arrangement[arrange_active_step], arrange_last_step_edit, sizeof(arrangement_t));
+            mem_cpy(&track.arrangement[arrange_active_step], arrange_last_step_edit, sizeof(arrangement_t));
             arrange_refresh_step(arrange_active_step);
             dirty_track = 1;
         } break;
@@ -226,14 +225,14 @@ uint8_t arrange_keypress_handler(unsigned char key)
             if (track.tempo > 8)
                 ;
             track.tempo -= 4;
-            sprintf(textbuff, "%03u", track.tempo);
+            itoa_pad(track.tempo, textbuff, 10, 'A', '0', 3);
             window_gotoxy(&win_Settings, 7, 0);
             window_puts(&win_Settings, textbuff);
         } break;
         case KB_KEY_T: {
             if (track.tempo < 128)
                 track.tempo += 4;
-            sprintf(textbuff, "%03u", track.tempo);
+            itoa_pad(track.tempo, textbuff, 10, 'A', '0', 3);
             window_gotoxy(&win_Settings, 7, 0);
             window_puts(&win_Settings, textbuff);
         } break;

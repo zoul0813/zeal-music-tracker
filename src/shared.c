@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <core.h>
 #include <zos_sys.h>
 #include <zos_vfs.h>
 #include <zos_video.h>
@@ -63,7 +63,13 @@ void handle_error(zos_err_t err, char* msg, uint8_t fatal)
 {
     if (err != ERR_SUCCESS) {
         cursor_xy(2, 20);
-        printf("failed to %s, %d (%02x)\n", msg, err, err);
+        put_s("failed to ");
+        put_s(msg);
+        put_s(", ");
+        put_u8(err);
+        put_s(" (");
+        put_hex8(err);
+        put_s(")\n");
         if (fatal)
             __exit(err);
     }

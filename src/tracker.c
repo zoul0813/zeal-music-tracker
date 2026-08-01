@@ -1,6 +1,4 @@
-#include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
+#include <core.h>
 #include <zvb_hardware.h>
 #include <zvb_sound.h>
 #include "tracker.h"
@@ -11,8 +9,28 @@ static uint8_t current_arrangement = 0;
 static uint8_t next_step           = 0;
 static uint8_t last_step           = 0;
 
-static const char* str_error_msg_write = "failed to write %d, %0d (%02x)\n";
-static const char* str_error_msg_read  = "failed to write %d, %0d (%02x)\n";
+static void print_error(const char* message, zos_err_t err)
+{
+    put_s(message);
+    put_s(", ");
+    put_u8(err);
+    put_s(" (");
+    put_hex8(err);
+    put_s(")\n");
+}
+
+static void print_io_error(const char* operation, uint8_t stage, zos_err_t err)
+{
+    put_s("failed to ");
+    put_s(operation);
+    put_c(' ');
+    put_u8(stage);
+    put_s(", ");
+    put_u8(err);
+    put_s(" (");
+    put_hex8(err);
+    put_s(")\n");
+}
 
 /** Page Banking for Sound Peripheral */
 const __sfr __banked __at(0xF0) mmu_page0_ro;
@@ -485,27 +503,24 @@ zos_err_t zmt_pattern_load(pattern_t* pattern, zos_dev_t dev)
     size = sizeof(uint8_t);
     err  = read(dev, &voice_bitmap, &size);
     if (err != ERR_SUCCESS) {
-        printf(str_error_msg_read, 1, err, err);
+        print_io_error("read", 1, err);
         return err;
     }
 
-    // printf("  Voices: %02x\n", voice_bitmap);
     for (i = 0; i < NUM_VOICES; i++) {
         voice        = &pattern->voices[i];
         bit          = voice_bitmap & 0x01;
         voice_bitmap = voice_bitmap >> 1;
         if (!bit)
             continue; // empty voice
-        // printf("  Voice: %d\n", i);
 
         /** Voice Header */
         size = sizeof(uint32_t);
         err  = read(dev, &voice_header, &size);
         if (err != ERR_SUCCESS) {
-            printf(str_error_msg_read, 2, err, err);
+            print_io_error("read", 2, err);
             return err;
         }
-        // printf("  Header: %08lx\n", voice_header);
 
         for (j = 0; j < STEPS_PER_PATTERN; j++) {
             step         = &voice->steps[j];
@@ -517,7 +532,7 @@ zos_err_t zmt_pattern_load(pattern_t* pattern, zos_dev_t dev)
             size = sizeof(uint8_t);
             err  = read(dev, &step_header, &size);
             if (err != ERR_SUCCESS) {
-                printf(str_error_msg_read, 3, err, err);
+                print_io_error("read", 3, err);
                 return err;
             }
 
@@ -525,7 +540,7 @@ zos_err_t zmt_pattern_load(pattern_t* pattern, zos_dev_t dev)
                 size = sizeof(note_index_t);
                 err  = read(dev, &step->note, &size);
                 if (err != ERR_SUCCESS) {
-                    printf(str_error_msg_read, 4, err, err);
+                    print_io_error("read", 4, err);
                     return err;
                 }
             }
@@ -534,7 +549,7 @@ zos_err_t zmt_pattern_load(pattern_t* pattern, zos_dev_t dev)
                 size = sizeof(waveform_t);
                 err  = read(dev, &step->waveform, &size);
                 if (err != ERR_SUCCESS) {
-                    printf(str_error_msg_read, 5, err, err);
+                    print_io_error("read", 5, err);
                     return err;
                 }
             }
@@ -543,7 +558,7 @@ zos_err_t zmt_pattern_load(pattern_t* pattern, zos_dev_t dev)
                 size = sizeof(fx_t);
                 err  = read(dev, &step->fx1, &size);
                 if (err != ERR_SUCCESS) {
-                    printf(str_error_msg_read, 6, err, err);
+                    print_io_error("read", 6, err);
                     return err;
                 }
             }
@@ -552,7 +567,7 @@ zos_err_t zmt_pattern_load(pattern_t* pattern, zos_dev_t dev)
                 size = sizeof(fx_t);
                 err  = read(dev, &step->fx2, &size);
                 if (err != ERR_SUCCESS) {
-                    printf(str_error_msg_read, 7, err, err);
+                    print_io_error("read", 7, err);
                     return err;
                 }
             }
@@ -588,11 +603,10 @@ zos_err_t zmt_pattern_save(pattern_t* pattern, zos_dev_t dev)
             voice_bitmap++;
     }
 
-    // printf("  Voices: %02x\n", voice_bitmap);
     size = sizeof(uint8_t);
     err  = write(dev, &voice_bitmap, &size);
     if (err != ERR_SUCCESS) {
-        printf(str_error_msg_write, 1, err, err);
+        print_io_error("write", 1, err);
         return err;
     }
 
@@ -606,7 +620,7 @@ zos_err_t zmt_pattern_save(pattern_t* pattern, zos_dev_t dev)
         size = sizeof(uint32_t);
         write(dev, &voice_headers[i], &size);
         if (err != ERR_SUCCESS) {
-            printf(str_error_msg_write, 2, err, err);
+            print_io_error("write", 2, err);
             return err;
         }
 
@@ -626,11 +640,10 @@ zos_err_t zmt_pattern_save(pattern_t* pattern, zos_dev_t dev)
                 if (step->fx2 != FX_OUT_OF_RANGE)
                     step_header |= STEP_CELL_FX2;
 
-                // printf("  Voice %d, Step %d %02x\n", i, j, step_header);
                 size = sizeof(uint8_t);
                 err  = write(dev, &step_header, &size);
                 if (err != ERR_SUCCESS) {
-                    printf(str_error_msg_write, 3, err, err);
+                    print_io_error("write", 3, err);
                     return err;
                 }
 
@@ -670,13 +683,13 @@ zos_err_t zmt_arrangement_load(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_
     size = sizeof(uint32_t);
     err  = read(dev, &bitmap_low, &size);
     if (err != ERR_SUCCESS) {
-        printf(str_error_msg_write, 26, err, err);
+        print_io_error("read", 26, err);
         return err;
     }
     size = sizeof(uint32_t);
     err  = read(dev, &bitmap_high, &size);
     if (err != ERR_SUCCESS) {
-        printf(str_error_msg_write, 27, err, err);
+        print_io_error("read", 27, err);
         return err;
     }
 
@@ -689,7 +702,7 @@ zos_err_t zmt_arrangement_load(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_
         size = sizeof(arrangement_t);
         err  = read(dev, a, &size);
         if (err != ERR_SUCCESS) {
-            printf(str_error_msg_write, 18, err, err);
+            print_io_error("read", 18, err);
             return err;
         }
     }
@@ -702,7 +715,7 @@ zos_err_t zmt_arrangement_load(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_
         size = sizeof(arrangement_t);
         err  = read(dev, a, &size);
         if (err != ERR_SUCCESS) {
-            printf(str_error_msg_write, 18, err, err);
+            print_io_error("read", 18, err);
             return err;
         }
     }
@@ -739,14 +752,14 @@ zos_err_t zmt_arrangement_save(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_
     size = sizeof(uint32_t);
     err  = write(dev, &bitmap_low, &size);
     if (err != ERR_SUCCESS) {
-        printf(str_error_msg_write, 16, err, err);
+        print_io_error("write", 16, err);
         return err;
     }
 
     size = sizeof(uint32_t);
     err  = write(dev, &bitmap_high, &size);
     if (err != ERR_SUCCESS) {
-        printf(str_error_msg_write, 17, err, err);
+        print_io_error("write", 17, err);
         return err;
     }
 
@@ -757,7 +770,7 @@ zos_err_t zmt_arrangement_save(arrangement_t arrangement[NUM_ARRANGEMENTS], zos_
             size = sizeof(arrangement_t);
             err  = write(dev, a, &size);
             if (err != ERR_SUCCESS) {
-                printf(str_error_msg_write, 18, err, err);
+                print_io_error("write", 18, err);
                 return err;
             }
         }
@@ -776,42 +789,38 @@ zos_err_t zmt_file_load(track_t* track, const char* filename)
 
     zos_dev_t file_dev = open(filename, O_RDONLY);
     if (file_dev < 0) {
-        printf("failed to open file, %d (%02x)\n", -file_dev, -file_dev);
+        print_error("failed to open file", -file_dev);
         return -file_dev;
     }
 
-    // printf("Loading '%s' ...\n", filename);
 
     size = 3;
     err  = read(file_dev, textbuff, &size); // format header
     if (err != ERR_SUCCESS) {
-        printf("error reading format header, %d (%02x)\n", err, err);
+        print_error("error reading format header", err);
         return err;
     }
-    // printf("Format: %.3s\n", textbuff);
 
     size = sizeof(uint8_t);
     err  = read(file_dev, textbuff, &size); // version header
     if (err != ERR_SUCCESS) {
-        printf("error reading version header, %d (%02x)\n", err, err);
+        print_error("error reading version header", err);
         return err;
     }
-    // printf("Version: %d\n", textbuff[0]);
 
     size = TRACKER_TITLE_LEN;
     err  = read(file_dev, textbuff, &size); // track title
     if (err != ERR_SUCCESS) {
-        printf("error reading track title, %d (%02x)\n", err, err);
+        print_error("error reading track title", err);
         return err;
     }
-    memcpy(track->title, textbuff, size);
+    mem_cpy(track->title, textbuff, size);
     track->title[TRACKER_TITLE_LEN] = 0x00; // NUL
-    // printf("Track: %12s (read: %d)\n", track->title, size);
 
     size = sizeof(uint8_t);
     err  = read(file_dev, &track->tempo, &size);
     if (err != ERR_SUCCESS) {
-        printf("error reading tempo, %d (%02x)\n", err, err);
+        print_error("error reading tempo", err);
         return err;
     }
 
@@ -820,27 +829,24 @@ zos_err_t zmt_file_load(track_t* track, const char* filename)
     size = sizeof(uint8_t);
     err  = read(file_dev, &track->pattern_count, &size); // pattern count
     if (err != ERR_SUCCESS) {
-        printf("error reading pattern count, %d (%02x)\n", err, err);
+        print_error("error reading pattern count", err);
         return err;
     }
-    // printf("Patterns: %d\n", track->pattern_count);
 
     err = zmt_arrangement_load(track->arrangement, file_dev);
     if (err != ERR_SUCCESS) {
-        printf("error reading arrangement, %d (%02x)\n", err, err);
+        print_error("error reading arrangement", err);
         return err;
     }
 
     for (uint8_t p = 0; p < track->pattern_count; p++) {
-        // printf("Loading pattern %d\n", p);
         err = zmt_pattern_load(track->patterns[p], file_dev);
         if (err != ERR_SUCCESS) {
-            printf("error loading patterns, %d (%02x)\n", err, err);
+            print_error("error loading patterns", err);
             return err;
         }
     }
 
-    // printf("File loaded.\n\n");
     err = close(file_dev);
     return err;
 }
@@ -852,17 +858,22 @@ zos_err_t zmt_file_save(track_t* track, const char* filename)
     char textbuff[TRACKER_TITLE_LEN + 1];
     zos_dev_t file_dev = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
     if (file_dev < 0) {
-        printf("failed to open file for saving, '%s' %d (%02x)\n", filename, -file_dev, -file_dev);
+        put_s("failed to open file for saving, '");
+        put_s(filename);
+        put_s("' ");
+        put_u8(-file_dev);
+        put_s(" (");
+        put_hex8(-file_dev);
+        put_s(")\n");
         return -file_dev;
     }
 
-    // printf("Saving '%s' ...\n", filename);
 
     /** FILE HEADER */
     size = 3;
     err  = write(file_dev, "ZMT", &size); // format header
     if (err != ERR_SUCCESS) {
-        printf("error saving format header, %d (%02x)\n", err, err);
+        print_error("error saving format header", err);
         return err;
     }
 
@@ -870,49 +881,48 @@ zos_err_t zmt_file_save(track_t* track, const char* filename)
     textbuff[0] = 0;
     err         = write(file_dev, textbuff, &size); // version header
     if (err != ERR_SUCCESS) {
-        printf("error saving version header, %d (%02x)\n", err, err);
+        print_error("error saving version header", err);
         return err;
     }
 
     size = TRACKER_TITLE_LEN;
-    sprintf(textbuff, "%-.12s", track->title);
+    mem_set(textbuff, 0, TRACKER_TITLE_LEN);
+    str_cpyn(textbuff, track->title, TRACKER_TITLE_LEN);
     err = write(file_dev, textbuff, &size); // track title
     if (err != ERR_SUCCESS) {
-        printf("error saving title length, %d (%02x)\n", err, err);
+        print_error("error saving title length", err);
         return err;
     }
 
     size = sizeof(uint8_t);
     err  = write(file_dev, &track->tempo, &size);
     if (err != ERR_SUCCESS) {
-        printf("error saving tempo, %d (%02x)\n", err, err);
+        print_error("error saving tempo", err);
         return err;
     }
 
     size = sizeof(uint8_t);
     err  = write(file_dev, &track->pattern_count, &size); // pattern count
     if (err != ERR_SUCCESS) {
-        printf("error saving pattern count, %d (%02x)\n", err, err);
+        print_error("error saving pattern count", err);
         return err;
     }
 
     /** ARRANGEMENT */
     err = zmt_arrangement_save(track->arrangement, file_dev);
     if (err != ERR_SUCCESS) {
-        printf("error saving arrangement, %d (%02x)\n", err, err);
+        print_error("error saving arrangement", err);
         return err;
     }
 
     /** PATTERNS */
     for (uint8_t p = 0; p < track->pattern_count; p++) {
-        // printf("Writing pattern %d\n", p);
         err = zmt_pattern_save(track->patterns[p], file_dev);
         if (err != ERR_SUCCESS) {
-            printf("error saving patterns, %d (%02x)\n", err, err);
+            print_error("error saving patterns", err);
             return err;
         }
     }
-    // printf("File saved.\n");
     err = close(file_dev);
     return err;
 }
@@ -999,7 +1009,7 @@ void zmt_arrangement_init(arrangement_t arrangement[NUM_ARRANGEMENTS])
 /* Initialize a new track, zeroes out everything */
 void zmt_track_init(track_t* track)
 {
-    memcpy(track->title, "New Track", 9);
+    mem_cpy(track->title, "New Track", 9);
     track->pattern_count = 1;
     track->tempo         = 32;
     track->current_tempo = track->tempo;

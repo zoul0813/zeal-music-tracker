@@ -2,11 +2,11 @@
   "C_Cpp.default.includePath": [
     "${workspaceFolder}/include",
     "${workspaceFolder}/src",
-    "${workspaceFolder}/libsrc/*/",
     "${env:ZVB_SDK_PATH}/include",
     "${env:ZVB_SDK_PATH}/sdcc",
     "${env:ZOS_PATH}/kernel_headers/sdcc/include",
-    "${env:ZGDK_PATH}/include"
+    "${env:ZGDK_PATH}/include",
+    "${env:COREUTILS_PATH}/libsrc/*/"
   ],
   "workbench.editorAssociations": {
     "*.ztp": "hexEditor.hexedit",
