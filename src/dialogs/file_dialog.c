@@ -5,7 +5,7 @@
 #include <keyboard.h>
 
 #include "shared.h"
-#include "tracker.h"
+#include <zgdk/sound/tracker.h>
 #include "file_dialog.h"
 
 window_t win_FileDialog = {

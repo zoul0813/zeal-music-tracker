@@ -2,7 +2,7 @@
 #include <zos_video.h>
 #include <windows.h>
 
-#include "tracker.h"
+#include <zgdk/sound/tracker.h>
 
 #ifndef SHARED_H
 #define SHARED_H

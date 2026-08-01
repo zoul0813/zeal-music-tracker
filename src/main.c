@@ -5,7 +5,7 @@
 #include <keyboard.h>
 #include <windows.h>
 
-#include "tracker.h"
+#include <zgdk/sound/tracker.h>
 #include "shared.h"
 // views
 #include "pattern.h"

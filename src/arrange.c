@@ -1,7 +1,7 @@
 #include <core.h>
 #include <zos_keyboard.h>
 #include <windows.h>
-#include "tracker.h"
+#include <zgdk/sound/tracker.h>
 #include "shared.h"
 #include "arrange.h"
 
