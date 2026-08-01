@@ -39,7 +39,7 @@ uint8_t get_filename(char *buff) {
         switch(key) {
             case KB_KEY_ENTER: {
                 // done
-                textbuff[pos] = 0x00;
+                buff[pos] = 0x00;
                 goto end_loop;
             } break;
             case KB_ESC: {
@@ -48,6 +48,8 @@ uint8_t get_filename(char *buff) {
             } break;
             case KB_KEY_BACKSPACE:
             case KB_DELETE: {
+                if (pos == 0)
+                    break;
                 pos--;
                 buff[pos] = 0x00;
                 cx--;
@@ -58,6 +60,8 @@ uint8_t get_filename(char *buff) {
                 window_gotox(&win_FileDialog, x);
             } break;
             default: {
+                if (pos >= max_len)
+                    break;
                 char c = getch(key);
                 buff[pos] = c;
                 pos++;
