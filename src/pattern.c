@@ -73,6 +73,14 @@ window_t* windows[NUM_VOICES] = {
     &win_Pattern4,
 };
 
+static void pattern_select_voice(uint8_t voice_index)
+{
+    window_active(windows[active_voice_index], 0);
+    active_voice_index = voice_index;
+    active_voice       = &active_pattern->voices[active_voice_index];
+    window_active(windows[active_voice_index], 1);
+}
+
 void pattern_update_cell(voice_t* voice, int8_t amount)
 {
     step_t* step = &voice->steps[active_step];
@@ -279,6 +287,7 @@ void pattern_show(uint8_t index)
     active_voice_index = active_voice_index;
     active_voice       = &active_pattern->voices[active_voice_index];
     pattern_refresh_steps();
+    window_active(windows[active_voice_index], 1);
 }
 
 void pattern_current_step_handler(uint8_t current_step)
@@ -418,29 +427,25 @@ uint8_t pattern_keypress_handler(unsigned char key)
         /** VOICE NAVIGATION */
         case KB_KEY_1: {
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
-            active_voice_index = 0;
-            active_voice       = &active_pattern->voices[active_voice_index];
+            pattern_select_voice(0);
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
         case KB_KEY_2: {
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
-            active_voice_index = 1;
-            active_voice       = &active_pattern->voices[active_voice_index];
+            pattern_select_voice(1);
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
         case KB_KEY_3: {
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
-            active_voice_index = 2;
-            active_voice       = &active_pattern->voices[active_voice_index];
+            pattern_select_voice(2);
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
         case KB_KEY_4: {
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
-            active_voice_index = 3;
-            active_voice       = &active_pattern->voices[active_voice_index];
+            pattern_select_voice(3);
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
