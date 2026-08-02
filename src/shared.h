@@ -48,6 +48,7 @@ extern char textbuff[PATH_MAX];
 
 int __exit(zos_err_t err);
 void handle_error(zos_err_t err, char* msg, uint8_t fatal);
+void dialog_open(window_t* win);
 
 
 static inline void cursor_x(unsigned char x)

@@ -5,6 +5,4 @@
 
 void confirm_dialog_show(const char* message);
 void notice_dialog_show(const char* message);
-uint8_t confirm_keypress_handler(unsigned char key);
-uint8_t notice_keypress_handler(unsigned char key);
 #endif

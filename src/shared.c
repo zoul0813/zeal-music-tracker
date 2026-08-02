@@ -74,3 +74,9 @@ void handle_error(zos_err_t err, char* msg, uint8_t fatal)
             __exit(err);
     }
 }
+
+void dialog_open(window_t* win)
+{
+    window_save();
+    window(win);
+}

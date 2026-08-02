@@ -33,6 +33,7 @@ add_executable(${target_name}
     "src/arrange.c"
     "src/pattern.c"
     "src/shared.c"
+    "src/strings.c"
     "src/dialogs/confirm_dialog.c"
     "src/dialogs/file_dialog.c"
     "src/dialogs/help_dialog.c"

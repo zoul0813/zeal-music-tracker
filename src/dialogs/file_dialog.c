@@ -8,10 +8,13 @@
 #include <zgdk/sound/tracker.h>
 #include "file_dialog.h"
 
+#define FILE_DIALOG_W (SCREEN_COL80_WIDTH - 10)
+#define FILE_NAME_MAX (FILE_DIALOG_W - 19)
+
 window_t win_FileDialog = {
     .x     = 5,
     .y     = 10,
-    .w     = SCREEN_COL80_WIDTH - 10,
+    .w     = FILE_DIALOG_W,
     .h     = 5,
     .flags = WIN_BORDER | WIN_SHADOW,
     .fg    = TEXT_COLOR_BLACK,
@@ -20,13 +23,9 @@ window_t win_FileDialog = {
     .title = "Save As...",
 };
 
-file_dialog_t dialog_type = FILE_SAVE;
-
-uint8_t max_len = 0;
-
 uint8_t get_filename(char *buff) {
-    uint16_t x = 13, cx = win_FileDialog.x + x + 1;
-    uint16_t y = 2, cy = win_FileDialog.y + y;
+    uint8_t x = 13, cx = win_FileDialog.x + x + 1;
+    uint8_t y = 2, cy = win_FileDialog.y + y;
     cursor_xy(cx, cy);
     cursor(1);
     window_gotox(&win_FileDialog, x);
@@ -60,7 +59,7 @@ uint8_t get_filename(char *buff) {
                 window_gotox(&win_FileDialog, x);
             } break;
             default: {
-                if (pos >= max_len)
+                if (pos >= FILE_NAME_MAX)
                     break;
                 char c = getch(key);
                 buff[pos] = c;
@@ -80,9 +79,7 @@ end_loop:
 
 uint8_t file_dialog_show(file_dialog_t type)
 {
-    window_save();
     zos_err_t err = ERR_SUCCESS;
-    dialog_type = type;
     uint8_t refresh_view = 0;
     
     switch (type) {
@@ -93,14 +90,11 @@ uint8_t file_dialog_show(file_dialog_t type)
             win_FileDialog.title = "Load From";
         } break;
     }
-    window(&win_FileDialog);
+    dialog_open(&win_FileDialog);
     window_puts(&win_FileDialog, "\n  Filename: [");
-    max_len = 0;
-    for(uint8_t i = 0; i < win_FileDialog.w - 18; i++) {
-        window_putc(&win_FileDialog, CH_DOT); //\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9\xF9]
-        max_len++;
+    for(uint8_t i = 0; i <= FILE_NAME_MAX; i++) {
+        window_putc(&win_FileDialog, CH_DOT);
     }
-    max_len--;
     window_putc(&win_FileDialog, ']');
 
     if(!get_filename(textbuff)) goto close_dialog;

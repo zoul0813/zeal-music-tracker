@@ -7,6 +7,7 @@
 
 #include <zgdk/sound/tracker.h>
 #include "shared.h"
+#include "strings.h"
 // views
 #include "pattern.h"
 #include "arrange.h"
@@ -101,13 +102,13 @@ void redraw(void)
     window(&win_Main);
 
     window_banner(&win_Main, 0, win_Main.h - 1, 1,
-        "[\x1B\x74Q]uit "
-        "[\x1B\x74H]elp "
-        "[\x1B\x74S]ave "
-        "[\x1B\x74L]oad "
-        "[\x1B\x74\x11\x1B\x74\x10] Edit "
-        "[\x1B\x74\x1E\x1B\x74\x1F] Move "
-        "[\x1B\x74\x1A] Next Cell"
+        "[" TEXT_HIGHLIGHT("Q") "]uit "
+        "[" TEXT_HIGHLIGHT("H") "]elp "
+        "[" TEXT_HIGHLIGHT("S") "]ave "
+        "[" TEXT_HIGHLIGHT("L") "]oad "
+        "[" TEXT_HIGHLIGHT(CH_CARET_LEFT) TEXT_HIGHLIGHT(CH_CARET_RIGHT) "] Edit "
+        "[" TEXT_HIGHLIGHT(CH_CARET_UP) TEXT_HIGHLIGHT(CH_CARET_DOWN) "] Move "
+        "[" TEXT_HIGHLIGHT(CH_ARROW_RIGHT) "] Next Cell"
     );
 }
 
