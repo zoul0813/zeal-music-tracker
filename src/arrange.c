@@ -94,12 +94,12 @@ void arrange_update_cell(int8_t amount)
                 if (amount > 0) {
                     a->pattern_index = 0;
                 } else {
-                    a->pattern_index = NUM_PATTERNS - 1;
+                    a->pattern_index = track.pattern_count - 1;
                 }
             } else {
                 a->pattern_index += amount;
             }
-            if (a->pattern_index >= NUM_PATTERNS)
+            if (a->pattern_index >= track.pattern_count)
                 a->pattern_index = ARRANGEMENT_OUT_OF_RANGE;
         } break;
         case Cell_Effect: {
@@ -233,7 +233,10 @@ uint8_t arrange_keypress_handler(unsigned char key)
         /* Tempo */
         case KB_KEY_R: {
             if (track.tempo > 4) {
-                track.tempo -= 4;
+                if (track.tempo < 8)
+                    track.tempo = 4;
+                else
+                    track.tempo -= 4;
                 dirty_track = 1;
             }
             itoa_pad(track.tempo, textbuff, 10, 'A', '0', 3);
@@ -242,7 +245,10 @@ uint8_t arrange_keypress_handler(unsigned char key)
         } break;
         case KB_KEY_T: {
             if (track.tempo < 128) {
-                track.tempo += 4;
+                if (track.tempo > 124)
+                    track.tempo = 128;
+                else
+                    track.tempo += 4;
                 dirty_track = 1;
             }
             itoa_pad(track.tempo, textbuff, 10, 'A', '0', 3);

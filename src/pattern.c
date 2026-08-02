@@ -550,8 +550,6 @@ uint8_t pattern_keypress_handler(unsigned char key)
         } break;
         case KB_KEY_D: {
             // delete pattern
-            if (active_pattern_index < 1)
-                break;
             if (track.pattern_count < 2)
                 break;
             if (pattern_is_referenced(active_pattern_index)) {
