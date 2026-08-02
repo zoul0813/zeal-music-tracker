@@ -50,6 +50,7 @@ void dialog_close(void);
 void view_switch(View view);
 void load_or_init_file(int argc, char** argv);
 void handle_keypress(char key);
+void reset_loaded_track_state(void);
 
 static inline void wait_vblank(void)
 {
@@ -82,6 +83,18 @@ void dialog_close(void)
     view_switch(previous_view);
 }
 
+void reset_loaded_track_state(void)
+{
+    playing = 0;
+    zmt_sound_off();
+    zmt_track_reset(&track, previous_view == VIEW_ARRANGER);
+    pattern_reset_state();
+    arrange_reset_state();
+    current_pattern     = 0;
+    current_step        = 0;
+    current_arrangement = 0;
+}
+
 void redraw(void)
 {
     // draw the main window
@@ -110,6 +123,15 @@ void view_switch(View view)
     } else if (is_main_view && !was_main_view) {
         // Returning from a dialog to a main view - restore the screen
         active_view = view;
+        if (view == VIEW_ARRANGER) {
+            keypress_handler            = &arrange_keypress_handler;
+            current_step_handler        = NULL;
+            current_arrangement_handler = &arrange_current_arrangement_handler;
+        } else {
+            keypress_handler            = &pattern_keypress_handler;
+            current_step_handler        = &pattern_current_step_handler;
+            current_arrangement_handler = NULL;
+        }
         window_restore();
         return;
     }
@@ -136,7 +158,7 @@ void view_switch(View view)
             keypress_handler            = &help_keypress_handler;
             current_step_handler        = NULL;
             current_arrangement_handler = NULL;
-            help_dialog_show(active_view);
+            help_dialog_show(previous_view);
         } break;
         case VIEW_FILE_SAVE: {
             // keypress_handler            = &file_keypress_handler;
@@ -151,6 +173,7 @@ void view_switch(View view)
             current_arrangement_handler = NULL;
             uint8_t refresh = file_dialog_show(FILE_LOAD);
             if (refresh) {
+                reset_loaded_track_state();
                 // Force active_view to trigger full redraw
                 active_view = VIEW_NONE;
             }

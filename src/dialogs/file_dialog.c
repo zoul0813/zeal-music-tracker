@@ -105,7 +105,6 @@ uint8_t file_dialog_show(file_dialog_t type)
 
     if(!get_filename(textbuff)) goto close_dialog;
 
-    dirty_track = 0; // either way, we just saved or loaded, so it's clean
     switch (type) {
         case FILE_SAVE: {
             window_title(&win_FileDialog, "Saving...");
@@ -116,9 +115,12 @@ uint8_t file_dialog_show(file_dialog_t type)
             window_title(&win_FileDialog, "Loading...");
             err = zmt_file_load(&track, textbuff);
             handle_error(err, "file open", 1);
-            refresh_view = 1;
+            if (err == ERR_SUCCESS)
+                refresh_view = 1;
         } break;
     }
+    if (err == ERR_SUCCESS)
+        dirty_track = 0;
 
 close_dialog:
     window_restore();

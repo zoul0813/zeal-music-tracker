@@ -42,6 +42,14 @@ window_t win_Settings = {
     .fg_highlight = PATTERN_WINDOW_HL1,
 };
 
+void arrange_reset_state(void)
+{
+    arrange_active_cell     = 0;
+    arrange_active_step     = 0;
+    arrange_last_step_edit  = NULL;
+    arrange_previous_step   = 0;
+}
+
 #define STEP_XY(step)                                \
     uint8_t x  = (step % 8) * (ARRANGEMENT_LEN + 1); \
     uint8_t y  = (step >> 3) + 1;                    \
@@ -209,9 +217,11 @@ uint8_t arrange_keypress_handler(unsigned char key)
             arrange_last_step_edit = &track.arrangement[arrange_active_step];
         } break;
         case KB_INSERT: {
-            mem_cpy(&track.arrangement[arrange_active_step], arrange_last_step_edit, sizeof(arrangement_t));
-            arrange_refresh_step(arrange_active_step);
-            dirty_track = 1;
+            if (arrange_last_step_edit != NULL) {
+                mem_cpy(&track.arrangement[arrange_active_step], arrange_last_step_edit, sizeof(arrangement_t));
+                arrange_refresh_step(arrange_active_step);
+                dirty_track = 1;
+            }
         } break;
         case KB_DELETE: {
             track.arrangement[arrange_active_step].pattern_index = ARRANGEMENT_OUT_OF_RANGE;
@@ -222,16 +232,19 @@ uint8_t arrange_keypress_handler(unsigned char key)
 
         /* Tempo */
         case KB_KEY_R: {
-            if (track.tempo > 8)
-                ;
-            track.tempo -= 4;
+            if (track.tempo > 4) {
+                track.tempo -= 4;
+                dirty_track = 1;
+            }
             itoa_pad(track.tempo, textbuff, 10, 'A', '0', 3);
             window_gotoxy(&win_Settings, 7, 0);
             window_puts(&win_Settings, textbuff);
         } break;
         case KB_KEY_T: {
-            if (track.tempo < 128)
+            if (track.tempo < 128) {
                 track.tempo += 4;
+                dirty_track = 1;
+            }
             itoa_pad(track.tempo, textbuff, 10, 'A', '0', 3);
             window_gotoxy(&win_Settings, 7, 0);
             window_puts(&win_Settings, textbuff);

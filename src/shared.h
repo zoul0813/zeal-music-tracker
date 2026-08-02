@@ -40,6 +40,7 @@ extern current_step_t current_step_handler;
 extern current_step_t current_arrangement_handler;
 extern callback_t close_handler;
 extern confirm_t confirm_handler;
+extern View active_view;
 
 extern uint8_t dirty_track;
 

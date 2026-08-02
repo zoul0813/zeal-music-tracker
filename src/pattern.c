@@ -81,6 +81,18 @@ static void pattern_select_voice(uint8_t voice_index)
     window_active(windows[active_voice_index], 1);
 }
 
+void pattern_reset_state(void)
+{
+    active_pattern_index = zmt_pattern_set(&track, 0);
+    active_pattern       = track.patterns[active_pattern_index];
+    active_voice_index   = 0;
+    active_voice         = &active_pattern->voices[active_voice_index];
+    active_cell          = 0;
+    active_step          = 0;
+    last_step_edit       = NULL;
+    previous_step        = 0;
+}
+
 void pattern_update_cell(voice_t* voice, int8_t amount)
 {
     step_t* step = &voice->steps[active_step];
@@ -105,10 +117,14 @@ void pattern_update_cell(voice_t* voice, int8_t amount)
             if (step->note >= NUM_NOTES) {
                 step->note = NOTE_OUT_OF_RANGE;
             }
-            mem_cpy(textbuff, NOTE_NAMES[step->note], 3);
-            textbuff[3] = 0;
             window_gotoxy(w, CELL_OFFSET_FREQ, active_step + 1);
-            window_puts_color(w, textbuff, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+            if (step->note == NOTE_OUT_OF_RANGE) {
+                window_puts_color(w, "---", COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+            } else {
+                mem_cpy(textbuff, NOTE_NAMES[step->note], 3);
+                textbuff[3] = 0;
+                window_puts_color(w, textbuff, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+            }
             break;
         case Cell_Waveform:
             if (amount < 0 && step->waveform == 0xFF) {
@@ -297,6 +313,15 @@ void pattern_current_step_handler(uint8_t current_step)
     previous_step = current_step;
 }
 
+static uint8_t pattern_is_referenced(uint8_t pattern_index)
+{
+    for (uint8_t i = 0; i < NUM_ARRANGEMENTS; i++) {
+        if (track.arrangement[i].pattern_index == pattern_index)
+            return 1;
+    }
+    return 0;
+}
+
 int clear_pattern_handler(uint8_t confirmed)
 {
     if (confirmed != ERR_SUCCESS)
@@ -321,6 +346,10 @@ int delete_pattern_handler(uint8_t confirmed)
 {
     if (confirmed != ERR_SUCCESS)
         return ERR_FAILURE;
+    if (pattern_is_referenced(active_pattern_index))
+        return ERR_FAILURE;
+
+    uint8_t deleted_pattern_index = active_pattern_index;
 
     // shift everything down...
     uint8_t i;
@@ -329,10 +358,23 @@ int delete_pattern_handler(uint8_t confirmed)
         pattern_t* p_src  = track.patterns[i];
         mem_cpy(p_dest, p_src, sizeof(pattern_t));
     }
+
+    for (i = 0; i < NUM_ARRANGEMENTS; i++) {
+        arrangement_t* arrangement = &track.arrangement[i];
+        if (arrangement->pattern_index != ARRANGEMENT_OUT_OF_RANGE &&
+            arrangement->pattern_index > deleted_pattern_index) {
+            arrangement->pattern_index--;
+        }
+    }
+
     track.pattern_count--;
-    if(active_pattern_index >= track.pattern_count) {
+    if (active_pattern_index >= track.pattern_count) {
         active_pattern_index = track.pattern_count - 1;
     }
+    active_pattern_index = zmt_pattern_set(&track, active_pattern_index);
+    active_pattern       = track.patterns[active_pattern_index];
+    active_voice         = &active_pattern->voices[active_voice_index];
+    dirty_track          = 1;
 
     window_gotoxy(&win_Indicators, 0, 0);
     textbuff[0] = 'P';
@@ -367,16 +409,18 @@ uint8_t pattern_keypress_handler(unsigned char key)
             last_step_edit = &active_voice->steps[active_step];
         } break;
         case KB_INSERT: {
-            mem_cpy(&active_voice->steps[active_step], last_step_edit, sizeof(step_t));
-            pattern_refresh_step(active_voice_index, active_step);
-            pattern_color_step(active_step, PATTERN_WINDOW_HL1);
-            pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
-            dirty_track = 1;
+            if (last_step_edit != NULL) {
+                mem_cpy(&active_voice->steps[active_step], last_step_edit, sizeof(step_t));
+                pattern_refresh_step(active_voice_index, active_step);
+                pattern_color_step(active_step, PATTERN_WINDOW_HL1);
+                pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+                dirty_track = 1;
+            }
         } break;
         case KB_DELETE: {
             active_voice->steps[active_step].note     = NOTE_OUT_OF_RANGE;
             active_voice->steps[active_step].waveform = WAVEFORM_OUT_OF_RANGE;
-            active_voice->steps[active_step].fx2      = FX_OUT_OF_RANGE;
+            active_voice->steps[active_step].fx1      = FX_OUT_OF_RANGE;
             active_voice->steps[active_step].fx2      = FX_OUT_OF_RANGE;
             pattern_refresh_step(active_voice_index, active_step);
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
@@ -477,15 +521,18 @@ uint8_t pattern_keypress_handler(unsigned char key)
         } break;
         case KB_KEY_N: {
             // new pattern
-            if (track.pattern_count < NUM_PATTERNS) {
-                track.pattern_count++;
-                active_pattern_index = track.pattern_count - 1;
-                dirty_track          = 1;
+            if (track.pattern_count >= NUM_PATTERNS) {
+                notice_dialog_show("Pattern limit reached");
+                break;
             }
+
+            track.pattern_count++;
+            active_pattern_index = track.pattern_count - 1;
             active_pattern_index = zmt_pattern_set(&track, active_pattern_index);
             active_pattern       = track.patterns[active_pattern_index];
             active_voice         = &active_pattern->voices[active_voice_index];
             zmt_pattern_init(active_pattern);
+            dirty_track = 1;
 
             window_gotoxy(&win_Indicators, 0, 0);
             textbuff[0] = 'P';
@@ -507,6 +554,10 @@ uint8_t pattern_keypress_handler(unsigned char key)
                 break;
             if (track.pattern_count < 2)
                 break;
+            if (pattern_is_referenced(active_pattern_index)) {
+                notice_dialog_show("Pattern is used in arrangement");
+                break;
+            }
 
             confirm_handler = &delete_pattern_handler;
             confirm_dialog_show("Delete Pattern?");
