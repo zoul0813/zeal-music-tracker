@@ -146,11 +146,29 @@ static void test_pattern_preview_selection(void)
     assert(((uint16_t)zvb_peri_sound_freq_high<<8 | zvb_peri_sound_freq_low)==NOTES[NOTE_MIDDLE_C]);
 }
 
+static void test_help_is_modal(void)
+{
+    init();dirty_track=1;
+    handle_keypress(KB_KEY_H);
+    const uint8_t commands[]={KB_KEY_S,KB_KEY_L,KB_KEY_Q,KB_KEY_P,KB_KEY_A,KB_KEY_SPACE,KB_KEY_H};
+    for(uint8_t i=0;i<sizeof commands;i++) {
+        handle_keypress(commands[i]);
+        assert(active_view==VIEW_HELP && previous_view==VIEW_PATTERN);
+        assert(loads==0 && saves==0 && exits==0 && !playing && dirty_track);
+        assert(keypress_handler==&help_keypress_handler);
+    }
+    handle_keypress(KB_KEY_ENTER);
+    assert(active_view==VIEW_PATTERN && keypress_handler==&pattern_keypress_handler);
+    handle_keypress(KB_KEY_S);
+    assert(saves==1 && dirty_track==0 && active_view==VIEW_PATTERN);
+}
+
 int main(void)
 {
     test_load_confirmation();
     test_recoverable_file_errors();
     test_help_preserves_playback();
     test_pattern_preview_selection();
+    test_help_is_modal();
     puts("ZMT interface tests passed");
 }

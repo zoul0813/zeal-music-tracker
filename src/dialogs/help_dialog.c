@@ -75,10 +75,9 @@ uint8_t help_keypress_handler(unsigned char key)
         case KB_KEY_ENTER: {
             if (close_handler != NULL)
                 close_handler();
-            window_restore();
         } break;
         default: {
-            return 0; // unhandled
+            return 1; // Help is modal; do not dispatch global commands.
         }
     }
     return 1;
