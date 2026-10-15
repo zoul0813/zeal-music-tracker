@@ -192,6 +192,13 @@ void view_switch(View view)
     }
 }
 
+static int load_confirmed(uint8_t result)
+{
+    if (result == ERR_SUCCESS)
+        view_switch(VIEW_FILE_LOAD);
+    return result;
+}
+
 void handle_keypress(char key)
 {
     uint8_t handled = 0;
@@ -230,7 +237,12 @@ void handle_keypress(char key)
             view_switch(VIEW_FILE_SAVE);
         } break;
         case KB_KEY_L: {
-            view_switch(VIEW_FILE_LOAD);
+            if (dirty_track) {
+                confirm_handler = &load_confirmed;
+                confirm_dialog_show("Discard changes and load?");
+            } else {
+                view_switch(VIEW_FILE_LOAD);
+            }
         } break;
 
         /** VIEWS */
