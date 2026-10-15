@@ -1,3 +1,4 @@
+#include <core.h>
 #include <stdint.h>
 #include <zos_keyboard.h>
 #include <zos_sys.h>

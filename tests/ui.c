@@ -4,12 +4,6 @@
 #define main zmt_application_main
 #include "../src/main.c"
 #undef main
-#include "../src/pattern.c"
-#include "../src/arrange.c"
-#include "../src/dialogs/file_dialog.c"
-#include "../src/dialogs/confirm_dialog.c"
-#include "../src/dialogs/help_dialog.c"
-#include "../src/strings.c"
 #include <dialogs.h>
 #include "private.h"
 
