@@ -77,6 +77,20 @@ end_loop:
     return 1;
 }
 
+static void show_file_error(file_dialog_t type, zos_err_t err)
+{
+    window_title(&win_FileDialog, type == FILE_SAVE ? "Save failed" : "Load failed");
+    window_gotoxy(&win_FileDialog, 2, 0);
+    window_puts(&win_FileDialog, "Error: ");
+    itoa_pad(err, textbuff, 10, 'A', '0', 3);
+    window_puts(&win_FileDialog, textbuff);
+    window_puts(&win_FileDialog, "\n Press Enter to return");
+    uint8_t key;
+    do {
+        key = getkey();
+    } while (key != KB_KEY_ENTER && key != KB_ESC);
+}
+
 uint8_t file_dialog_show(file_dialog_t type)
 {
     zos_err_t err = ERR_SUCCESS;
@@ -103,18 +117,20 @@ uint8_t file_dialog_show(file_dialog_t type)
         case FILE_SAVE: {
             window_title(&win_FileDialog, "Saving...");
             err = zmt_file_save(&track, textbuff);
-            handle_error(err, "file save", 1);
+
         } break;
         case FILE_LOAD: {
             window_title(&win_FileDialog, "Loading...");
             err = zmt_file_load(&track, textbuff);
-            handle_error(err, "file open", 1);
+
             if (err == ERR_SUCCESS)
                 refresh_view = 1;
         } break;
     }
     if (err == ERR_SUCCESS)
         dirty_track = 0;
+    else
+        show_file_error(type, err);
 
 close_dialog:
     window_restore();

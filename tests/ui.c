@@ -96,8 +96,23 @@ static void test_load_confirmation(void)
     init();handle_keypress(KB_KEY_L);
     assert(loads==1 && active_view==VIEW_PATTERN);
 }
+static void test_recoverable_file_errors(void)
+{
+    init();dirty_track=1;file_error=ERR_NO_SUCH_ENTRY;
+    keys[2]=KB_KEY_ENTER;
+    handle_keypress(KB_KEY_L);handle_keypress(KB_KEY_Y);
+    assert(loads==1 && dirty_track==1 && active_view==VIEW_PATTERN);
+    assert(exits==0 && key_position==3);
+    init();dirty_track=1;file_error=ERR_READ_ONLY;
+    keys[2]=KB_KEY_ENTER;
+    handle_keypress(KB_KEY_S);
+    assert(saves==1 && dirty_track==1 && active_view==VIEW_PATTERN);
+    assert(exits==0 && key_position==3);
+}
+
 int main(void)
 {
     test_load_confirmation();
+    test_recoverable_file_errors();
     puts("ZMT interface tests passed");
 }
