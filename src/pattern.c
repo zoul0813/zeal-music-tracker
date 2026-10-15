@@ -285,7 +285,7 @@ void pattern_refresh_steps(void)
 
 void pattern_show(uint8_t index)
 {
-    active_pattern_index = index;
+    active_pattern_index = zmt_pattern_set(&track, index);
     active_pattern       = track.patterns[active_pattern_index];
 
     // pattern step indicators

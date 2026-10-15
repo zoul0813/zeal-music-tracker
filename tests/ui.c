@@ -128,10 +128,29 @@ static void test_help_preserves_playback(void)
     assert(active_view==VIEW_ARRANGER && playing && playback_arrangement);
 }
 
+static void test_pattern_preview_selection(void)
+{
+    init();track.pattern_count=2;
+    zmt_pattern_init(&patterns[1]);
+    patterns[0].voices[0].steps[0].note=NOTE_MIDDLE_C;
+    patterns[1].voices[0].steps[0].note=NOTE_MIDDLE_C+12;
+    track.arrangement[1]=(arrangement_t){1,FX_OUT_OF_RANGE};
+    view_switch(VIEW_ARRANGER);handle_keypress(KB_KEY_SPACE);
+    zmt_ticks=0;zmt_next_step=31;zmt_tick(&track,playback_arrangement);
+    assert(zmt_current_pattern==1);
+    handle_keypress(KB_KEY_P);
+    assert(active_pattern_index==0 && zmt_current_pattern==0 && !playback_arrangement);
+    handle_keypress(KB_KEY_SPACE);handle_keypress(KB_KEY_SPACE);
+    zmt_tick(&track,playback_arrangement);
+    assert(zmt_current_pattern==0);
+    assert(((uint16_t)zvb_peri_sound_freq_high<<8 | zvb_peri_sound_freq_low)==NOTES[NOTE_MIDDLE_C]);
+}
+
 int main(void)
 {
     test_load_confirmation();
     test_recoverable_file_errors();
     test_help_preserves_playback();
+    test_pattern_preview_selection();
     puts("ZMT interface tests passed");
 }
