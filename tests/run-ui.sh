@@ -10,7 +10,7 @@ binary=$(mktemp "${TMPDIR:-/tmp}/zmt-ui.XXXXXX")
 trap 'rm -f "$binary"' EXIT HUP INT TERM
 "${CC:-cc}" -std=c11 -g -fno-builtin -funsigned-char -fsanitize=address,undefined \
     -Wno-switch -Wno-incompatible-function-pointer-types -Wno-unused-value -Wno-int-to-void-pointer-cast -include "$root/tests/host.h" \
-    -I"$root/src" -I"$zgdk/include" -I"$zvb/include" \
+    -I"$root/src" -I"$zgdk/src/sound/tracker" -I"$zgdk/include" -I"$zvb/include" \
     -I"$core/libsrc/libcore" -I"$core/libsrc/libwindows" -I"$core/libsrc/libkeyboard" \
     -I"$zos/sdk/sdcc/include" "$root/tests/ui.c" \
     "$zgdk/src/sound/tracker/main.c" "$zgdk/src/sound/tracker/global.c" \

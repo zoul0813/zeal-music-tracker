@@ -25,6 +25,7 @@ confirm_t confirm_handler                  = NULL;
 
 uint8_t mmu_page_current;
 uint8_t playing             = 0;
+uint8_t playback_arrangement = 0;
 uint8_t current_step        = 0;
 uint8_t current_pattern     = 0;
 uint8_t current_arrangement = 0;
@@ -88,7 +89,7 @@ void reset_loaded_track_state(void)
 {
     playing = 0;
     zmt_sound_off();
-    zmt_track_reset(&track, previous_view == VIEW_ARRANGER);
+    zmt_track_reset(&track, playback_arrangement);
     pattern_reset_state();
     arrange_reset_state();
     current_pattern     = 0;
@@ -116,6 +117,8 @@ void view_switch(View view)
 {
     if(active_view == view) return;
     uint8_t is_main_view = (view == VIEW_ARRANGER || view == VIEW_PATTERN);
+    if (is_main_view)
+        playback_arrangement = (view == VIEW_ARRANGER);
     uint8_t was_main_view = (active_view == VIEW_NONE || active_view == VIEW_ARRANGER || active_view == VIEW_PATTERN);
 
     if (!is_main_view && was_main_view) {
@@ -283,7 +286,7 @@ int main(int argc, char** argv)
         handle_keypress(key);
         if (playing) {
             wait_vblank();
-            zmt_tick(&track, active_view == VIEW_ARRANGER);
+            zmt_tick(&track, playback_arrangement);
             current_pattern     = zmt_track_get_pattern(&track);
             current_step        = zmt_track_get_last_step(&track);
             current_arrangement = zmt_track_get_arrangement(&track);

@@ -11,6 +11,7 @@
 #include "../src/dialogs/help_dialog.c"
 #include "../src/strings.c"
 #include <dialogs.h>
+#include "private.h"
 
 uint8_t zvb_peri_text_curs_x,zvb_peri_text_curs_y,zvb_peri_text_curs_time;
 uint8_t zvb_peri_text_color,zvb_peri_text_print_char,vid_ctrl_status;
@@ -110,9 +111,27 @@ static void test_recoverable_file_errors(void)
     assert(exits==0 && key_position==3);
 }
 
+static void test_help_preserves_playback(void)
+{
+    init();track.pattern_count=2;
+    zmt_pattern_init(&patterns[1]);
+    track.arrangement[1]=(arrangement_t){1,FX_OUT_OF_RANGE};
+    view_switch(VIEW_ARRANGER);
+    handle_keypress(KB_KEY_SPACE);
+    assert(playing && playback_arrangement);
+    handle_keypress(KB_KEY_H);
+    assert(active_view==VIEW_HELP && playing && playback_arrangement);
+    zmt_ticks=0;zmt_next_step=31;
+    zmt_tick(&track,playback_arrangement);
+    assert(zmt_current_arrangement==1 && zmt_current_pattern==1);
+    handle_keypress(KB_KEY_ENTER);
+    assert(active_view==VIEW_ARRANGER && playing && playback_arrangement);
+}
+
 int main(void)
 {
     test_load_confirmation();
     test_recoverable_file_errors();
+    test_help_preserves_playback();
     puts("ZMT interface tests passed");
 }
