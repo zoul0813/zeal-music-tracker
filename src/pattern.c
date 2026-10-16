@@ -15,6 +15,11 @@ uint8_t active_step        = 0;
 step_t* last_step_edit     = NULL;
 uint8_t previous_step      = 0;
 
+static uint8_t recording;
+static uint8_t input_octave = 4;
+/* A held key owns its voice until release, even after selecting another voice. */
+static uint8_t voice_keys[NUM_VOICES];
+
 window_t win_Indicators = {
     .x     = 2,
     .y     = PATTERN_WIN_Y,
@@ -73,6 +78,98 @@ window_t* windows[NUM_VOICES] = {
     &win_Pattern4,
 };
 
+void pattern_show_input_status(void)
+{
+    if (active_view != VIEW_PATTERN || keypress_handler != &pattern_keypress_handler)
+        return;
+    uint8_t held = 0;
+    for (uint8_t i = 0; i < NUM_VOICES; i++)
+        held += voice_keys[i] != 0;
+    char digit[2] = {0, 0};
+    text_map_vram();
+    cursor_xy(18, 1);
+    setcolor(recording ? TEXT_COLOR_YELLOW : TEXT_COLOR_BLACK, TEXT_COLOR_LIGHT_GRAY);
+    print(recording ? "RECORD   " : playing ? "PLAY     " : "AUDITION ");
+    print("Oct:");
+    digit[0] = '0' + input_octave;
+    print(digit);
+    print(" Held:");
+    digit[0] = '0' + held;
+    print(digit);
+    print(" [R] Record [-/=] Octave   ");
+    text_demap_vram();
+}
+
+static void pattern_sound_step(step_t* step, uint8_t voice_index)
+{
+    uint8_t backup_page = zvb_config_dev_idx;
+    zvb_map_peripheral(ZVB_PERI_SOUND_IDX);
+    zmt_play_step(step, 1U << voice_index);
+    zvb_map_peripheral(backup_page);
+}
+
+void pattern_release_key(uint8_t key)
+{
+    for (uint8_t i = 0; i < NUM_VOICES; i++) {
+        if (voice_keys[i] && voice_keys[i] == key) {
+            step_t off;
+            zmt_step_init(&off, 0);
+            off.note = NOTE_OFF;
+            pattern_sound_step(&off, i);
+            voice_keys[i] = 0;
+            pattern_show_input_status();
+        }
+    }
+}
+
+void pattern_release_all(void)
+{
+    for (uint8_t i = 0; i < NUM_VOICES; i++)
+        pattern_release_key(voice_keys[i]);
+}
+
+void pattern_disarm_recording(void)
+{
+    pattern_release_all();
+    recording = 0;
+}
+
+static void preview_effect(step_t* preview, fx_t fx)
+{
+    if (fx >= FX_VOICE_SQ && fx <= FX_VOICE_NOISE)
+        preview->waveform = fx - FX_VOICE_SQ;
+    else if (fx >= FX_VOL_00_0 && fx <= FX_VOL_100)
+        preview->fx1 = fx;
+}
+
+static void pattern_audition(uint8_t voice_index, uint8_t note)
+{
+    step_t preview;
+    zmt_step_init(&preview, 0);
+    preview.note = note;
+    preview.waveform = WAV_SQUARE;
+    preview.fx1 = FX_VOL_75_0;
+    /* Resolve sound settings without executing transport FX or mutating the song. */
+    for (uint8_t row = 0; row <= active_step; row++) {
+        step_t* step = &active_pattern->voices[voice_index].steps[row];
+        preview_effect(&preview, step->fx1);
+        if (step->waveform != WAVEFORM_OUT_OF_RANGE)
+            preview.waveform = step->waveform <= 3 ? step->waveform : WAV_SQUARE;
+        preview_effect(&preview, step->fx2);
+    }
+    pattern_sound_step(&preview, voice_index);
+}
+
+static uint8_t piano_offset(uint8_t key)
+{
+    const char* keys = "zsxdcvgbhnjm";
+    for (uint8_t i = 0; i < 12; i++) {
+        if (keys[i] == key)
+            return i;
+    }
+    return 0xFF;
+}
+
 static void pattern_select_voice(uint8_t voice_index)
 {
     window_active(windows[active_voice_index], 0);
@@ -83,6 +180,8 @@ static void pattern_select_voice(uint8_t voice_index)
 
 void pattern_reset_state(void)
 {
+    pattern_disarm_recording();
+    input_octave = 4;
     active_pattern_index = zmt_pattern_set(&track, 0);
     active_pattern       = track.patterns[active_pattern_index];
     active_voice_index   = 0;
@@ -304,6 +403,7 @@ void pattern_show(uint8_t index)
     active_voice       = &active_pattern->voices[active_voice_index];
     pattern_refresh_steps();
     window_active(windows[active_voice_index], 1);
+    pattern_show_input_status();
 }
 
 void pattern_current_step_handler(uint8_t current_step)
@@ -388,9 +488,82 @@ int delete_pattern_handler(uint8_t confirmed)
     return ERR_SUCCESS;
 }
 
+static void pattern_record_note(uint8_t voice_index, uint8_t note)
+{
+    step_t* step = &active_pattern->voices[voice_index].steps[active_step];
+    if (step->note != note) {
+        step->note = note;
+        dirty_track = 1;
+    }
+    last_step_edit = step;
+    pattern_refresh_step(voice_index, active_step);
+    pattern_color_step(active_step, PATTERN_WINDOW_HL1);
+    pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
+}
+
+static uint8_t pattern_piano_key(uint8_t key)
+{
+    uint8_t offset = piano_offset(key);
+    if (offset == 0xFF)
+        return 0;
+    if (playing)
+        return 1;
+    for (uint8_t i = 0; i < NUM_VOICES; i++) {
+        if (voice_keys[i] == key)
+            return 1;
+    }
+    for (uint8_t i = 0; i < NUM_VOICES; i++) {
+        uint8_t index = (active_voice_index + i) % NUM_VOICES;
+        if (voice_keys[index])
+            continue;
+        uint8_t note = input_octave * 12 + offset;
+        voice_keys[index] = key;
+        if (recording)
+            pattern_record_note(index, note);
+        pattern_audition(index, note);
+        pattern_show_input_status();
+        break;
+    }
+    /* All four voices busy: ignore extra notes rather than stealing a held voice. */
+    return 1;
+}
+
 uint8_t pattern_keypress_handler(unsigned char key)
 {
+    if (pattern_piano_key(key))
+        return 1;
+    /* Space moves exactly as Down while recording; it never reaches transport. */
+    if (key == KB_KEY_SPACE && recording)
+        key = KB_DOWN_ARROW;
     switch (key) {
+        case KB_KEY_A: {
+            if (!recording)
+                return 0; // Allow the global Arrangement view shortcut.
+            pattern_release_key(voice_keys[active_voice_index]);
+            pattern_record_note(active_voice_index, NOTE_OFF);
+        } break;
+        case KB_KEY_F: {
+            if (!recording)
+                return 0;
+            pattern_release_all();
+            for (uint8_t i = 0; i < NUM_VOICES; i++)
+                pattern_record_note(i, NOTE_OFF);
+        } break;
+        case KB_KEY_R: {
+            if (!playing) {
+                pattern_release_all();
+                recording ^= 1;
+                pattern_show_input_status();
+            }
+        } break;
+        case KB_KEY_MINUS:
+        case KB_KEY_EQUAL: {
+            if (key == KB_KEY_MINUS && input_octave > 0)
+                input_octave--;
+            if (key == KB_KEY_EQUAL && input_octave < (NOTE_OFF / 12) - 1)
+                input_octave++;
+            pattern_show_input_status();
+        } break;
         /** CELL EDIT */
         case KB_LEFT_ARROW: {
             pattern_update_cell(active_voice, -1);
@@ -496,6 +669,7 @@ uint8_t pattern_keypress_handler(unsigned char key)
 
         /** PATTERN NAVIGATION */
         case KB_KEY_LEFT_BRACKET: {
+            pattern_release_all();
             // previous pattern
             active_pattern_index = zmt_pattern_prev(&track);
             active_pattern       = track.patterns[active_pattern_index];
@@ -508,6 +682,7 @@ uint8_t pattern_keypress_handler(unsigned char key)
             window_puts(&win_Indicators, textbuff);
         } break;
         case KB_KEY_RIGHT_BRACKET: {
+            pattern_release_all();
             // next pattern
             active_pattern_index = zmt_pattern_next(&track);
             active_pattern       = track.patterns[active_pattern_index];
@@ -519,7 +694,8 @@ uint8_t pattern_keypress_handler(unsigned char key)
             itoa_pad(active_pattern_index & 0x0F, &textbuff[1], 16, 'A', '0', 1);
             window_puts(&win_Indicators, textbuff);
         } break;
-        case KB_KEY_N: {
+        case KB_F5: {
+            pattern_release_all();
             // new pattern
             if (track.pattern_count >= NUM_PATTERNS) {
                 notice_dialog_show("Pattern limit reached");
@@ -543,12 +719,12 @@ uint8_t pattern_keypress_handler(unsigned char key)
             pattern_color_step(active_step, PATTERN_WINDOW_HL1);
             pattern_color_cell(active_step, active_cell, COLOR(PATTERN_WINDOW_HL1, TEXT_COLOR_BLUE));
         } break;
-        case KB_KEY_C: {
+        case KB_F6: {
             // clear pattern
             confirm_handler = &clear_pattern_handler;
             confirm_dialog_show("Clear Pattern?");
         } break;
-        case KB_KEY_D: {
+        case KB_F7: {
             // delete pattern
             if (track.pattern_count < 2)
                 break;

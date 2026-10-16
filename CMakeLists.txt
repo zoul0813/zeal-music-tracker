@@ -30,6 +30,7 @@ project(${target_name} C ASM)
 
 add_executable(${target_name}
     "src/main.c"
+    "src/input.c"
     "src/arrange.c"
     "src/pattern.c"
     "src/shared.c"
@@ -41,7 +42,7 @@ add_executable(${target_name}
 
 target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(${target_name} PRIVATE $ENV{ZVB_SDK_PATH}/include)
-target_link_libraries(${target_name} PRIVATE zgdk keyboard windows)
+target_link_libraries(${target_name} PRIVATE zgdk windows)
 
 target_compile_options(${target_name} PRIVATE
     $<$<COMPILE_LANGUAGE:C>:--nostdlib>

@@ -16,5 +16,9 @@ void pattern_show(uint8_t index);
 void pattern_reset_state(void);
 uint8_t pattern_keypress_handler(unsigned char key);
 void pattern_current_step_handler(uint8_t current_step);
+void pattern_release_key(uint8_t key);
+void pattern_release_all(void);
+void pattern_disarm_recording(void);
+void pattern_show_input_status(void);
 
 #endif

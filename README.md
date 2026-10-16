@@ -30,13 +30,13 @@ correspond with the Goto FX.  FX E0 will goto Step E0 (ie; Step 16).
 
 ## Controls
 
-* <kbd>S</kbd> - Save File
+* <kbd>F2</kbd> - Save File
 * <kbd>L</kbd> - Load File
-* <kbd>Space</kbd> - Play/Stop
-* <kbd>Esc</kbd> - Quit
-* <kbd>H</kbd> - Inline Help
+* <kbd>Space</kbd> - Play/Stop (when not recording)
+* <kbd>Q</kbd> - Quit
+* <kbd>F1</kbd> - Inline Help
 * <kbd>P</kbd> - Pattern View
-* <kbd>A</kbd> - Arrangement View
+* <kbd>A</kbd> - Arrangement View (when not recording)
 
 ### All Views
 
@@ -56,7 +56,56 @@ correspond with the Goto FX.  FX E0 will goto Step E0 (ie; Step 16).
 
 * <kbd>1</kbd>-<kbd>4</kbd> - Voice 1-4
 * <kbd>[</kbd>/<kbd>]</kbd> - Prev/Next Pattern
-* <kbd>N</kbd> - New Pattern
+* <kbd>F5</kbd> - New Pattern
+* <kbd>F6</kbd> - Clear Pattern (confirmation required)
+* <kbd>F7</kbd> - Delete Pattern (confirmation required)
+* <kbd>R</kbd> - Toggle recording while playback is stopped
+* <kbd>A</kbd> - Write OFF to the selected voice while recording
+* <kbd>F</kbd> - Write OFF to all four voices while recording
+* <kbd>-</kbd>/<kbd>=</kbd> - Lower/raise the piano input octave
+* <kbd>Space</kbd> - Advance one row while recording (wraps after the last row)
+
+### Piano input
+
+In Pattern view, use the bottom QWERTY row as piano keys:
+
+```text
+    S  D     G  H  J
+    C# D#    F# G# A#
+  Z  X  C  V  B  N  M
+  C  D  E  F  G  A  B
+```
+
+The default octave is 4 (Z plays C4). The header shows AUDITION, RECORD, or
+PLAY, the active octave (0–8), and the number of sounding piano keys held.
+
+With recording off, notes only audition and do not change the track. Press R
+while stopped to enable recording; each note press writes only the note into
+the current row. Waveform and effect fields are preserved. Release stops the
+audition without writing a note-off. Press A while recording to write OFF into
+the selected voice's current row and stop its held audition note, preserving
+waveform and effects. Press F while recording to write OFF into all four voices
+on the current row and stop all held audition notes, preserving waveform and
+effects in each voice. Turn recording off before using A to switch to Arrangement
+view. Rows do not advance automatically: use
+Space or the navigation keys. Advancing while holding a chord does not copy it
+into the next row; release and press the notes again to enter another chord.
+
+Hold multiple keys to audition or record up to four notes together. The first
+note uses the selected voice, and additional held notes use the next free
+voice columns, wrapping from voice 4 to voice 1. A fifth held note is ignored;
+release and press it again once a voice is free. Key repeats do not enter extra
+notes. The keyboard must support the chosen key combination (keyboard rollover).
+
+Each voice auditions with its most recent waveform and volume settings from
+the start of the current pattern through the selected row, defaulting to square
+wave at 75% volume. Auditioning does not execute jumps or countdowns.
+
+Voice selection with 1–4 and waveform/effect editing work in record mode.
+Recording and playback are mutually exclusive: stop playback before pressing R,
+and turn recording off before pressing Space to play. Leaving Pattern view or
+loading a track turns recording off; dialogs preserve record mode and stop held
+audition notes. The octave resets to 4 when loading a track.
 
 ## FX Codes
 

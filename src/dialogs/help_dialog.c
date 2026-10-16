@@ -27,18 +27,19 @@ void help_dialog_show(View view)
 {
     switch(view) {
         case VIEW_ARRANGER: win_Help.h = 23; break;
-        case VIEW_PATTERN: win_Help.h = 27; break;
+        case VIEW_PATTERN: win_Help.h = 36; break;
     }
+    win_Help.y = (SCREEN_COL80_HEIGHT - win_Help.h) / 2;
 
     dialog_open(&win_Help);
     window_puts_color(&win_Help, " General\n", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
-    window_puts(&win_Help, " " CH_BULLET " S - Save File\n");
+    window_puts(&win_Help, " " CH_BULLET " F2 - Save File\n");
     window_puts(&win_Help, " " CH_BULLET " L - Load File\n");
-    window_puts(&win_Help, " " CH_BULLET " Space - Play/Stop\n");
-    window_puts(&win_Help, " " CH_BULLET " Esc - Quit\n");
-    window_puts(&win_Help, " " CH_BULLET " H - Inline Help\n");
+    window_puts(&win_Help, " " CH_BULLET " Space - Play/Stop (not recording)\n");
+    window_puts(&win_Help, " " CH_BULLET " Q - Quit\n");
+    window_puts(&win_Help, " " CH_BULLET " F1 - Inline Help\n");
     window_puts(&win_Help, " " CH_BULLET " P - Pattern View\n");
-    window_puts(&win_Help, " " CH_BULLET " A - Arrangement View\n");
+    window_puts(&win_Help, " " CH_BULLET " A - Arrangement (not recording)\n");
     window_puts(&win_Help, "\n");
     window_puts_color(&win_Help, " All Views\n", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
     window_puts(&win_Help, " " CH_BULLET " Up/Down - Next Step\n");
@@ -59,9 +60,18 @@ void help_dialog_show(View view)
             window_puts_color(&win_Help, " Pattern\n", COLOR(TEXT_COLOR_WHITE, win_Help.bg));
             window_puts(&win_Help, " " CH_BULLET " 1-4 - Voice 1-4\n");
             window_puts(&win_Help, " " CH_BULLET " [/] - Prev/Next Pattern\n");
-            window_puts(&win_Help, " " CH_BULLET " N - New Pattern\n");
-            window_puts(&win_Help, " " CH_BULLET " C - Clear Pattern\n");
-            window_puts(&win_Help, " " CH_BULLET " D - Delete Pattern\n");
+            window_puts(&win_Help, " " CH_BULLET " F5 - New Pattern\n");
+            window_puts(&win_Help, " " CH_BULLET " F6 - Clear Pattern\n");
+            window_puts(&win_Help, " " CH_BULLET " F7 - Delete Pattern\n");
+            window_puts(&win_Help, " " CH_BULLET " Z X C V B N M - C D E F G A B\n");
+            window_puts(&win_Help, " " CH_BULLET " S D G H J - C# D# F# G# A#\n");
+            window_puts(&win_Help, " " CH_BULLET " -/= - Octave down/up (default 4)\n");
+            window_puts(&win_Help, " " CH_BULLET " R - Record toggle (stop first)\n");
+            window_puts(&win_Help, " " CH_BULLET " A - Note OFF when recording\n");
+            window_puts(&win_Help, " " CH_BULLET " F - All OFF when recording\n");
+            window_puts(&win_Help, " " CH_BULLET " Space - Next row when recording\n");
+            window_puts(&win_Help, " " CH_BULLET " Hold keys for chords (4 voices)\n");
+            window_puts(&win_Help, " " CH_BULLET " Record changes notes only\n");
         } break;
     }
 

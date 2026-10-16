@@ -3,7 +3,7 @@
 #include <zos_keyboard.h>
 #include <zos_sys.h>
 #include <windows.h>
-#include <keyboard.h>
+#include "input.h"
 
 #include "shared.h"
 #include <zgdk/sound/tracker.h>
@@ -33,7 +33,7 @@ uint8_t get_filename(char *buff) {
 
     uint8_t pos = 0;
     while(1) {
-        unsigned char key = getkey();
+        unsigned char key = input_getkey();
         if(key == 0) continue;
 
         switch(key) {
@@ -60,9 +60,11 @@ uint8_t get_filename(char *buff) {
                 window_gotox(&win_FileDialog, x);
             } break;
             default: {
+                if (key < ' ' || key > '~')
+                    break;
                 if (pos >= FILE_NAME_MAX)
                     break;
-                char c = getch(key);
+                char c = input_getch(key);
                 buff[pos] = c;
                 pos++;
                 cx++;
@@ -88,7 +90,7 @@ static void show_file_error(file_dialog_t type, zos_err_t err)
     window_puts(&win_FileDialog, "\n Press Enter to return");
     uint8_t key;
     do {
-        key = getkey();
+        key = input_getkey();
     } while (key != KB_KEY_ENTER && key != KB_ESC);
 }
 

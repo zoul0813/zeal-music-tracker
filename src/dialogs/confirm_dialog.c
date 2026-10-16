@@ -4,6 +4,7 @@
 #include <dialogs.h>
 
 #include "shared.h"
+#include "pattern.h"
 #include "strings.h"
 #include "confirm_dialog.h"
 
@@ -59,6 +60,7 @@ static dialog_t message_dialog = {
 static void message_dialog_show(const char* title, const char* message,
                                 const dialog_action_t* actions, uint8_t action_count)
 {
+    pattern_release_all();
     keypress_handler_backup            = keypress_handler;
     current_step_handler_backup        = current_step_handler;
     current_arrangement_handler_backup = current_arrangement_handler;

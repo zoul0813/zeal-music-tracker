@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <zos_sys.h>
 #include <zos_video.h>
-#include <keyboard.h>
+#include "input.h"
 #include <windows.h>
 
 #include <zgdk/sound/tracker.h>
@@ -16,7 +16,6 @@
 #include "dialogs/confirm_dialog.h"
 
 static zos_err_t err                       = ERR_SUCCESS;
-unsigned char key                          = 0;
 keypress_t keypress_handler                = NULL;
 current_step_t current_step_handler        = NULL;
 current_step_t current_arrangement_handler = NULL;
@@ -104,8 +103,8 @@ void redraw(void)
 
     window_banner(&win_Main, 0, win_Main.h - 1, 1,
         "[" TEXT_HIGHLIGHT("Q") "]uit "
-        "[" TEXT_HIGHLIGHT("H") "]elp "
-        "[" TEXT_HIGHLIGHT("S") "]ave "
+        "[" TEXT_HIGHLIGHT("F1") "]Help "
+        "[" TEXT_HIGHLIGHT("F2") "]Save "
         "[" TEXT_HIGHLIGHT("L") "]oad "
         "[" TEXT_HIGHLIGHT(CH_CARET_LEFT) TEXT_HIGHLIGHT(CH_CARET_RIGHT) "] Edit "
         "[" TEXT_HIGHLIGHT(CH_CARET_UP) TEXT_HIGHLIGHT(CH_CARET_DOWN) "] Move "
@@ -116,6 +115,9 @@ void redraw(void)
 void view_switch(View view)
 {
     if(active_view == view) return;
+    pattern_release_all();
+    if (view == VIEW_ARRANGER)
+        pattern_disarm_recording();
     uint8_t is_main_view = (view == VIEW_ARRANGER || view == VIEW_PATTERN);
     if (is_main_view)
         playback_arrangement = (view == VIEW_ARRANGER);
@@ -137,6 +139,7 @@ void view_switch(View view)
             current_arrangement_handler = NULL;
         }
         window_restore();
+        pattern_show_input_status();
         return;
     }
     // Otherwise it's a main view to main view transition - full redraw below
@@ -219,8 +222,11 @@ void handle_keypress(char key)
         } break;
         /* PLAY */
         case KB_KEY_SPACE: {
+            pattern_release_all();
             playing ^= 1;
             if (playing) {
+                pattern_disarm_recording();
+                zmt_reset(VOL_75);
                 // if arranger, reset pattern
                 if (active_view == VIEW_ARRANGER) {
                     zmt_track_reset(&track, 1);
@@ -230,13 +236,14 @@ void handle_keypress(char key)
             } else {
                 zmt_sound_off();
             }
+            pattern_show_input_status();
         }; break;
-        case KB_KEY_H: {
+        case KB_F1: {
             view_switch(VIEW_HELP);
         } break;
 
         /* Files */
-        case KB_KEY_S: {
+        case KB_F2: {
             view_switch(VIEW_FILE_SAVE);
         } break;
         case KB_KEY_L: {
@@ -260,10 +267,30 @@ void handle_keypress(char key)
     }
 }
 
+static void handle_keyevent(const input_event_t* event)
+{
+    if (event->released) {
+        pattern_release_key(event->key);
+        return;
+    }
+    /* Editing/navigation may repeat; notes and mode/transport commands may not. */
+    if (event->repeated) {
+        switch (event->key) {
+            case KB_UP_ARROW: case KB_DOWN_ARROW:
+            case KB_LEFT_ARROW: case KB_RIGHT_ARROW:
+            case KB_PG_UP: case KB_PG_DOWN:
+                break;
+            default:
+                return;
+        }
+    }
+    handle_keypress(event->key);
+}
+
 int main(int argc, char** argv)
 {
     // initialize the keyboard
-    err = kb_mode_non_block_raw();
+    err = input_init();
     handle_error(err, "init keyboard", 1);
 
     // disable cursor blink
@@ -282,8 +309,13 @@ int main(int argc, char** argv)
 
     // main loop
     while (1) {
-        key = getkey();
-        handle_keypress(key);
+        input_event_t event;
+        do {
+            err = input_next(&event);
+            handle_error(err, "read keyboard", 1);
+            if (event.key)
+                handle_keyevent(&event);
+        } while (event.key);
         if (playing) {
             wait_vblank();
             zmt_tick(&track, playback_arrangement);

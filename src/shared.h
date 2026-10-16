@@ -43,6 +43,7 @@ extern confirm_t confirm_handler;
 extern View active_view;
 
 extern uint8_t dirty_track;
+extern uint8_t playing;
 
 extern char textbuff[PATH_MAX];
 
